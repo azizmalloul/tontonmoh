@@ -1,113 +1,181 @@
-<!doctype html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Caisse fidélité — Tonton Moh</title>
-  <link rel="stylesheet" href="./styles.css" />
-</head>
-<body>
-  <header class="container center">
-    <img src="./assets/logo.png" alt="Chez Tonton Moh" class="logo" />
-    <h1>Caisse fidélité</h1>
-  </header>
+<link rel="stylesheet" href="./styles.css" />
 
-  <main class="container card center">
-    <div class="grid">
-      <label>Montant de l'achat (€)*
-        <input type="number" step="0.01" min="0" id="amount" placeholder="0,00" />
-      </label>
-    </div>
-    <button class="btn" id="scanBtn">Scanner le QR client</button>
-    <p id="status" class="muted"></p>
+<main class="container card">
+  <h1>Encaissement — Scanner le QR</h1>
 
-    <video id="video" style="width:100%;max-width:480px;border-radius:12px;display:none;" muted playsinline></video>
-    <canvas id="canvas" style="display:none"></canvas>
-  </main>
+  <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 1rem;">
+    <!-- Colonne gauche : scanner -->
+    <section>
+      <div id="scanBox" class="center">
+        <video id="preview" class="qr" playsinline></video>
+        <p class="muted" id="scanStatus">Autorisez l’accès à la caméra pour scanner…</p>
+        <button id="toggleCam" class="btn" type="button">Basculer caméra</button>
+      </div>
+    </section>
 
-  <script>
-    const statusEl = document.getElementById('status');
-    const amountEl = document.getElementById('amount');
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const btn = document.getElementById('scanBtn');
+    <!-- Colonne droite : fiche client + encaissement -->
+    <section>
+      <div id="clientBox" class="card" style="display:none">
+        <h2 id="clientName"></h2>
+        <p class="muted">Code : <b id="clientCode"></b></p>
+        <p>Solde cumulé : <b id="clientBalance">0 €</b> — Cadeaux : <b id="clientGifts">0</b></p>
 
-    const hasBarcode = 'BarcodeDetector' in window;
-    let stream, detector;
+        <form id="payForm">
+          <label>Montant (€)</label>
+          <input type="number" id="amount" step="0.01" min="0.01" required />
+          <div class="row">
+            <button class="btn" type="submit">Valider l’achat</button>
+            <button class="btn outline" type="button" id="resetScan">Scanner un autre QR</button>
+          </div>
+        </form>
 
-    async function startScan(){
-      const amount = parseFloat((amountEl.value||'').replace(',', '.'));
-      if(!(amount>0)){ statusEl.textContent = 'Entrez un montant avant de scanner.'; statusEl.className='error'; return; }
-      statusEl.textContent = '';
-      if(!stream){
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        video.srcObject = stream; await video.play();
-        video.style.display = 'block';
+        <p id="formMsg" class="muted"></p>
+      </div>
+    </section>
+  </div>
+</main>
+
+<!-- ZXing scanner -->
+<script src="https://unpkg.com/@zxing/browser@latest"></script>
+<script>
+const API = 'https://tontonmoh-api.azizekarma.workers.dev';
+const useRouteByCode = true; // true si tu as implémenté /api/clients/by-code/<CODE>. Sinon mets false pour ?code_public=...
+
+const video = document.getElementById('preview');
+const scanStatus = document.getElementById('scanStatus');
+const toggleBtn = document.getElementById('toggleCam');
+
+const clientBox = document.getElementById('clientBox');
+const clientName = document.getElementById('clientName');
+const clientCode = document.getElementById('clientCode');
+const clientBalance = document.getElementById('clientBalance');
+const clientGifts = document.getElementById('clientGifts');
+
+const payForm = document.getElementById('payForm');
+const amountInput = document.getElementById('amount');
+const formMsg = document.getElementById('formMsg');
+const resetBtn = document.getElementById('resetScan');
+
+let currentClient = null;
+let currentDeviceIndex = 0;
+
+const codeReader = new ZXingBrowser.BrowserMultiFormatReader();
+
+async function startScanner() {
+  try {
+    const devices = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
+    if (!devices.length) {
+      scanStatus.textContent = 'Aucune caméra détectée.';
+      return;
+    }
+    const deviceId = devices[currentDeviceIndex % devices.length].deviceId;
+    await codeReader.decodeFromVideoDevice(deviceId, video, (result, err) => {
+      if (result) {
+        const code = result.getText().trim().toUpperCase();
+        codeReader.reset(); // stop scanning
+        scanStatus.textContent = 'QR détecté : ' + code;
+        onCodeScanned(code);
       }
-      detector = hasBarcode ? new BarcodeDetector({ formats: ['qr_code'] }) : null;
-      scanLoop();
-    }
-
-    async function scanLoop(){
-      if(!stream) return;
-      try{
-        if(detector){
-          const codes = await detector.detect(video);
-          if(codes.length){
-            const raw = codes[0].rawValue || codes[0].rawValue;
-            await onCode(raw);
-            return stopScan();
-          }
-        } else {
-          drawToCanvas();
-          statusEl.textContent = 'Ajoute jsQR pour compatibilité large (fallback).';
-        }
-      }catch(e){ console.error(e); }
-      requestAnimationFrame(scanLoop);
-    }
-
-    function drawToCanvas(){
-      const w = video.videoWidth, h = video.videoHeight;
-      if(!w || !h) return;
-      canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, w, h);
-    }
-
-    async function onCode(raw){
-      try{
-        const url = new URL(raw);
-        const code = url.pathname.split('/').pop();
-        const sig = url.searchParams.get('sig');
-        const amount = Math.round(parseFloat((amountEl.value||'').replace(',', '.')) * 100);
-        const res = await fetch('/api/purchase', {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ code_public: code, sig, amount_cents: amount })
-        });
-        const j = await res.json();
-        if(!res.ok) throw new Error(j.error || 'Erreur');
-        const euros = (j.remainder_cents/100).toFixed(2);
-        statusEl.className = 'success';
-        statusEl.textContent = j.gifts_added>0
-          ? `🎁 Cadeau ajouté ! Nouveau cumul: ${euros} €`
-          : `✅ Enregistré. Nouveau cumul: ${euros} €`;
-      }catch(err){
-        statusEl.className = 'error';
-        statusEl.textContent = err.message;
+      if (err && !(err instanceof ZXingBrowser.NotFoundException)) {
+        console.warn(err);
       }
-    }
+    });
+    scanStatus.textContent = 'Scanner prêt. Visez le QR…';
+  } catch (e) {
+    console.error(e);
+    scanStatus.textContent = 'Impossible de démarrer la caméra.';
+  }
+}
 
-    function stopScan(){
-      if(stream){
-        stream.getTracks().forEach(t=>t.stop());
-        stream = null;
-      }
-      video.style.display='none';
-    }
+toggleBtn.addEventListener('click', async () => {
+  codeReader.reset();
+  currentDeviceIndex++;
+  await startScanner();
+});
 
-    btn.addEventListener('click', startScan);
-    window.addEventListener('beforeunload', stopScan);
-  </script>
-</body>
-</html>
+async function onCodeScanned(code) {
+  // Récupérer le client par code_public
+  const url = useRouteByCode
+    ? `${API}/api/clients/by-code/${encodeURIComponent(code)}`
+    : `${API}/api/clients?code_public=${encodeURIComponent(code)}`;
+
+  const res = await fetch(url);
+  if (!res.ok) {
+    scanStatus.textContent = 'Code inconnu. Réessayez.';
+    await startScanner();
+    return;
+  }
+  const cli = await res.json();
+  currentClient = cli;
+
+  clientName.textContent = `${cli.first_name || ''} ${cli.last_name || ''}`.trim() || 'Client';
+  clientCode.textContent = cli.code_public;
+  clientBalance.textContent = (cli.balance / 100).toFixed(2) + ' €';
+  clientGifts.textContent = cli.gifts_count || 0;
+
+  clientBox.style.display = 'block';
+}
+
+resetBtn.addEventListener('click', async () => {
+  clientBox.style.display = 'none';
+  currentClient = null;
+  amountInput.value = '';
+  formMsg.textContent = '';
+  await startScanner();
+});
+
+// POST /api/transactions
+payForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  formMsg.textContent = '';
+
+  if (!currentClient) {
+    formMsg.textContent = 'Aucun client sélectionné.';
+    return;
+  }
+  const euros = parseFloat(amountInput.value.replace(',', '.'));
+  if (!euros || euros <= 0) {
+    formMsg.textContent = 'Montant invalide.';
+    return;
+  }
+  const amount_cents = Math.round(euros * 100);
+
+  const txId = 'tx_' + Date.now();
+  const payload = {
+    id: txId,
+    client_id: currentClient.id,
+    cashier_id: 'cash_001',    // tu peux mettre l’id réel de la caisse
+    amount_cents,
+    status: 'OK',
+    note: 'Achat en caisse',
+  };
+
+  try {
+    const res = await fetch(`${API}/api/transactions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Idempotency-Key': txId // simple idempotency
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const txt = await res.text();
+    let j = {}; try { j = JSON.parse(txt) } catch {}
+
+    if (!res.ok) throw new Error(j.error || txt || 'Erreur API');
+
+    formMsg.textContent = 'Achat enregistré ✔️';
+    // maj solde affiché (client côté serveur déjà mis à jour)
+    currentClient.balance += amount_cents;
+    clientBalance.textContent = (currentClient.balance / 100).toFixed(2) + ' €';
+    amountInput.value = '';
+  } catch (err) {
+    console.error(err);
+    formMsg.textContent = 'Erreur: ' + err.message;
+  }
+});
+
+// démarrer
+startScanner();
+</script>
