@@ -13,7 +13,8 @@
   </header>
   <main class="container card center">
     <p class="banner">Enregistrez l'image du QR. Vous la recevrez aussi par e-mail (WhatsApp possible manuellement).</p>
-    <img id="qrImg" class="qr" alt="QR fidélité" />
+    <img id="qrImg" class="qr" alt="QR fidélité" style="display:none" />
+    <div id="qrBox" class="qr"></div>
     <p id="codeText" class="muted"></p>
     <h2>Comment ça marche ?</h2>
     <ol class="container" style="text-align:left">
@@ -23,18 +24,65 @@
     </ol>
     <p><a id="accountLink" class="btn" href="#">Accéder à mon compte</a></p>
   </main>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
   <script>
     const p = new URLSearchParams(location.search);
-    const code = p.get('code');
-    if(!code){
-      document.querySelector('main').innerHTML = '<p class="error">Code introuvable.</p>';
+    const code = (p.get('code') || '').toUpperCase();
+  
+    const main = document.querySelector('main');
+    const img  = document.getElementById('qrImg');
+    const box  = document.getElementById('qrBox');
+    const codeText = document.getElementById('codeText');
+    const accountLink = document.getElementById('accountLink');
+  
+    if (!code) {
+      main.innerHTML = '<p class="error">Code introuvable.</p>';
     } else {
-      document.getElementById('qrImg').src = '/static/qrcodes/'+encodeURIComponent(code)+'.png';
-      document.getElementById('codeText').textContent = 'Code : '+code;
+      // texte + lien "Mon compte"
+      codeText.textContent = 'Code : ' + code;
       const account = new URL('/mon-compte.html', location.origin);
       account.searchParams.set('code', code);
-      document.getElementById('accountLink').href = account.toString();
+      accountLink.href = account.toString();
+  
+      // 1) on ESSAIE d'afficher un PNG statique s'il existe
+      img.src = '/static/qrcodes/' + encodeURIComponent(code) + '.png';
+      img.onload = () => { img.style.display = 'block'; };
+      img.onerror = () => {
+        // 2) s'il n'existe pas -> on GENÈRE le QR localement
+        img.remove(); // on cache/supprime l'<img> cassé
+        try {
+          // Le contenu du QR : ici on met seulement le code public
+          // (si tu préfères un lien vers le compte, remplace "text: code" par
+          //  `text: account.toString()`).
+          const q = new QRCode(box, {
+            text: code,
+            width: 256,
+            height: 256,
+            correctLevel: QRCode.CorrectLevel.M,
+          });
+  
+          // petit délai le temps que qrcodejs rende une <img>
+          setTimeout(() => {
+            const genImg = box.querySelector('img'); // qrcodejs rend une <img>
+            if (genImg) {
+              // bouton "Télécharger le QR"
+              const a = document.createElement('a');
+              a.className = 'btn';
+              a.textContent = 'Télécharger le QR';
+              a.download = code + '.png';
+              a.href = genImg.src;
+              // on l’ajoute en bas de la carte
+              main.appendChild(a);
+            }
+          }, 50);
+        } catch(e) {
+          box.innerHTML = '<p class="error">Impossible de générer le QR.</p>';
+          console.error(e);
+        }
+      };
     }
   </script>
+
 </body>
 </html>
