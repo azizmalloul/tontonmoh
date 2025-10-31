@@ -1,5 +1,8 @@
+
 const form = document.getElementById('signupForm');
 const msg  = document.getElementById('formMsg');
+
+const API = 'https://tontonmoh-api.azizekarma.workers.dev';
 
 // ====== AJOUTE CETTE LIGNE : TON API WORKER
 const API_BASE = 'https://tontonmoh-api.azizekarma.workers.dev';
@@ -41,11 +44,11 @@ form.addEventListener('submit', async (e)=>{
   }
 
   try{
-    // ====== ENVOIE DIRECTEMENT VERS TON WORKER (et plus /api/register sur Pages)
-    const res = await fetch(`${API_BASE}/api/clients`, {
+    
+    const res = await fetch(`${API}/api/register`, {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(payload)
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
     });
 
     if(!res.ok){
