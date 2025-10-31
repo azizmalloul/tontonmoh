@@ -110,7 +110,7 @@
   let currentClient = null;
   let currentDeviceId = localStorage.getItem(LS_CAM_ID) || null;
   let devicesCache = [];
-  const reader = new ZXingBrowser.BrowserMultiFormatReader();
+  const reader = new ZXingBrowser.BrowserQRCodeReader(); // QR seulement → meilleure détection
 
   // ========= OUTILS =========
   function euros(cents){ return (Number(cents||0)/100).toFixed(2) + ' €'; }
@@ -137,7 +137,6 @@
   }
 
   async function startScanner(){
-    // ne démarre que si montant renseigné
     const amountCents = validAmount();
     if (!amountCents){
       uiMsg.textContent = 'Entrez le montant avant de scanner.';
@@ -146,38 +145,82 @@
     }
     uiMsg.textContent = '';
     uiMsg.className = 'muted';
-
+  
     try{
       const devices = await listCameras();
       if (!devices.length){
         scanStatus.textContent = 'Aucune caméra détectée.';
         return;
       }
+      // choisir l’arrière et mémoriser
       const deviceId = pickRearCamera(devices);
       currentDeviceId = deviceId;
       localStorage.setItem(LS_CAM_ID, deviceId);
-
-      // On lance une lecture continue, et on “gèle” après la 1ère détection
+  
+      // Contraintes vidéo “propres” pour mobile
+      const constraints = {
+        video: {
+          deviceId: { exact: deviceId },
+          facingMode: { ideal: 'environment' },
+          width:  { ideal: 1280 },
+          height: { ideal: 720 },
+          advanced: [
+            { focusMode: 'continuous' },
+            { focusMode: 'auto' }
+          ]
+        },
+        audio: false
+      };
+  
       scanning = true;
-      await reader.decodeFromVideoDevice(deviceId, video, async (result, err)=>{
-        if (!scanning) return;                 // on ignore si “gelé”
-        if (result){
-          scanning = false;                    // on gèle la lecture sans fermer le flux (évite reproposition d’autorisation)
+  
+      // Utiliser decodeFromConstraints pour imposer la résolution/autofocus
+      await reader.decodeFromConstraints(constraints, video, async (result, err) => {
+        if (!scanning) return;
+        if (result) {
+          scanning = false; // geler la lecture (on garde le flux ouvert)
           const code = result.getText().trim().toUpperCase();
           scanStatus.textContent = 'QR détecté : ' + code;
           localStorage.setItem(LS_LAST_AMOUNT, String(amountInput.value));
-          await handleScannedCode(code);       // va encaisser directement
+          await handleScannedCode(code);
+          // prêt pour le suivant
+          setTimeout(()=>{ scanning = true; scanStatus.textContent='Prêt pour un autre QR…'; }, 600);
         }
-        if (err && !(err instanceof ZXingBrowser.NotFoundException)){
-          console.warn(err);
+        if (err && !(err instanceof ZXingBrowser.NotFoundException)) {
+          // erreurs non “pas trouvé” → log silencieux
+          // console.warn(err);
         }
       });
+  
       scanStatus.textContent = 'Scanner prêt. Visez le QR…';
+  
+      // 🔦 Tente d’activer la torche si dispo (Android)
+      try {
+        const track = video.srcObject ? video.srcObject.getVideoTracks()[0] : null;
+        const caps  = track?.getCapabilities?.();
+        if (caps && 'torch' in caps) {
+          // Ajoute un bouton lampe si pas déjà présent
+          if (!document.getElementById('torchBtn')) {
+            const torchBtn = document.createElement('button');
+            torchBtn.id = 'torchBtn';
+            torchBtn.type = 'button';
+            torchBtn.className = 'btn outline';
+            torchBtn.textContent = 'Lampe';
+            torchBtn.addEventListener('click', async ()=>{
+              const s = track.getSettings();
+              const next = !s.torch;
+              await track.applyConstraints({ advanced:[{ torch: next }] });
+            });
+            document.getElementById('scanBox').appendChild(torchBtn);
+          }
+        }
+      } catch(_) {}
     }catch(e){
       console.error(e);
-      scanStatus.textContent = 'Impossible d’accéder à la caméra. Vérifiez les permissions du navigateur.';
+      scanStatus.textContent = 'Impossible d’accéder à la caméra. Vérifiez les permissions.';
     }
   }
+
 
   async function stopScanner(keepStream=true){
     try{
