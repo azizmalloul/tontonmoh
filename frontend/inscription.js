@@ -45,6 +45,7 @@ form.addEventListener('submit', async (e) => {
   }
 
   try {
+    console.log('[signup] payload envoyé à /api/clients:', payload);
     // 👉 ici on appelle la bonne route :
     const res = await fetch(`${API}/api/clients`, {
       method: 'POST',
