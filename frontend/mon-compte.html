@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mon compte — Tonton Moh</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="container center">
+    <img src="./assets/logo.png" alt="Chez Tonton Moh" class="logo" />
+    <h1>Mon compte fidélité</h1>
+  </header>
+  <main class="container card">
+    <div id="account"></div>
+  </main>
+  <script>
+    async function load(){
+      const p = new URLSearchParams(location.search);
+      const code = p.get('code');
+      if(!code){ document.getElementById('account').innerHTML = '<p class="error">Code manquant.</p>'; return; }
+      const res = await fetch('/api/account?code='+encodeURIComponent(code));
+      const j = await res.json();
+      if(!res.ok){ document.getElementById('account').innerHTML = '<p class="error">'+(j.error||'Erreur')+'</p>'; return; }
+      const pct = Math.min(100, Math.round(j.cumul_cents / j.threshold_cents * 100));
+      document.getElementById('account').innerHTML = `
+        <div class="center">
+          <img src="/static/qrcodes/${j.code_public}.png" class="qr" alt="QR fidélité">
+          <h2>${j.first_name}</h2>
+          <p>Cadeaux cumulés : <b>${j.gifts_count}</b></p>
+          <div style="background:#eee;height:14px;border-radius:999px;overflow:hidden">
+            <div style="height:14px;width:${pct}%;background:var(--primary)"></div>
+          </div>
+          <p class="muted">${(j.cumul_cents/100).toFixed(2)} € / ${(j.threshold_cents/100).toFixed(2)} €</p>
+        </div>
+        <h3>Derniers achats</h3>
+        <ul>
+          ${j.history.map(h => `<li>${h.date} — ${(h.amount_cents/100).toFixed(2)} €</li>`).join('')}
+        </ul>
+      `;
+    }
+    load();
+  </script>
+</body>
+</html>

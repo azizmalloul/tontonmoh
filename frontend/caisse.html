@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Caisse fidélité — Tonton Moh</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="container center">
+    <img src="./assets/logo.png" alt="Chez Tonton Moh" class="logo" />
+    <h1>Caisse fidélité</h1>
+  </header>
+
+  <main class="container card center">
+    <div class="grid">
+      <label>Montant de l'achat (€)*
+        <input type="number" step="0.01" min="0" id="amount" placeholder="0,00" />
+      </label>
+    </div>
+    <button class="btn" id="scanBtn">Scanner le QR client</button>
+    <p id="status" class="muted"></p>
+
+    <video id="video" style="width:100%;max-width:480px;border-radius:12px;display:none;" muted playsinline></video>
+    <canvas id="canvas" style="display:none"></canvas>
+  </main>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const amountEl = document.getElementById('amount');
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const btn = document.getElementById('scanBtn');
+
+    const hasBarcode = 'BarcodeDetector' in window;
+    let stream, detector;
+
+    async function startScan(){
+      const amount = parseFloat((amountEl.value||'').replace(',', '.'));
+      if(!(amount>0)){ statusEl.textContent = 'Entrez un montant avant de scanner.'; statusEl.className='error'; return; }
+      statusEl.textContent = '';
+      if(!stream){
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        video.srcObject = stream; await video.play();
+        video.style.display = 'block';
+      }
+      detector = hasBarcode ? new BarcodeDetector({ formats: ['qr_code'] }) : null;
+      scanLoop();
+    }
+
+    async function scanLoop(){
+      if(!stream) return;
+      try{
+        if(detector){
+          const codes = await detector.detect(video);
+          if(codes.length){
+            const raw = codes[0].rawValue || codes[0].rawValue;
+            await onCode(raw);
+            return stopScan();
+          }
+        } else {
+          drawToCanvas();
+          statusEl.textContent = 'Ajoute jsQR pour compatibilité large (fallback).';
+        }
+      }catch(e){ console.error(e); }
+      requestAnimationFrame(scanLoop);
+    }
+
+    function drawToCanvas(){
+      const w = video.videoWidth, h = video.videoHeight;
+      if(!w || !h) return;
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, w, h);
+    }
+
+    async function onCode(raw){
+      try{
+        const url = new URL(raw);
+        const code = url.pathname.split('/').pop();
+        const sig = url.searchParams.get('sig');
+        const amount = Math.round(parseFloat((amountEl.value||'').replace(',', '.')) * 100);
+        const res = await fetch('/api/purchase', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ code_public: code, sig, amount_cents: amount })
+        });
+        const j = await res.json();
+        if(!res.ok) throw new Error(j.error || 'Erreur');
+        const euros = (j.remainder_cents/100).toFixed(2);
+        statusEl.className = 'success';
+        statusEl.textContent = j.gifts_added>0
+          ? `🎁 Cadeau ajouté ! Nouveau cumul: ${euros} €`
+          : `✅ Enregistré. Nouveau cumul: ${euros} €`;
+      }catch(err){
+        statusEl.className = 'error';
+        statusEl.textContent = err.message;
+      }
+    }
+
+    function stopScan(){
+      if(stream){
+        stream.getTracks().forEach(t=>t.stop());
+        stream = null;
+      }
+      video.style.display='none';
+    }
+
+    btn.addEventListener('click', startScan);
+    window.addEventListener('beforeunload', stopScan);
+  </script>
+</body>
+</html>

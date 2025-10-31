@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Merci — Carte fidélité</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="container center">
+    <img src="./assets/logo.png" alt="Chez Tonton Moh" class="logo" />
+    <h1>Votre carte fidélité est prête 🎉</h1>
+  </header>
+  <main class="container card center">
+    <p class="banner">Enregistrez l'image du QR. Vous la recevrez aussi par e-mail (WhatsApp possible manuellement).</p>
+    <img id="qrImg" class="qr" alt="QR fidélité" />
+    <p id="codeText" class="muted"></p>
+    <h2>Comment ça marche ?</h2>
+    <ol class="container" style="text-align:left">
+      <li>À chaque achat, le vendeur saisit le montant et scanne votre QR.</li>
+      <li>Votre cumul progresse vers <b>80 €</b>. Chaque palier atteint = <b>1 cadeau</b>.</li>
+      <li>“Mon compte” permet de voir le cumul et l’historique.</li>
+    </ol>
+    <p><a id="accountLink" class="btn" href="#">Accéder à mon compte</a></p>
+  </main>
+  <script>
+    const p = new URLSearchParams(location.search);
+    const code = p.get('code');
+    if(!code){
+      document.querySelector('main').innerHTML = '<p class="error">Code introuvable.</p>';
+    } else {
+      document.getElementById('qrImg').src = '/static/qrcodes/'+encodeURIComponent(code)+'.png';
+      document.getElementById('codeText').textContent = 'Code : '+code;
+      const account = new URL('/mon-compte.html', location.origin);
+      account.searchParams.set('code', code);
+      document.getElementById('accountLink').href = account.toString();
+    }
+  </script>
+</body>
+</html>
