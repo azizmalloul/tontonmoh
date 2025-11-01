@@ -69,74 +69,78 @@
 <script>
   // ========= PARAMS =========
   const API = 'https://tontonmoh-api.azizekarma.workers.dev';
-  const USE_BY_CODE_ROUTE = true;         // vrai si /api/clients/by-code/:code existe (oui)
+  const USE_BY_CODE_ROUTE = true;         // /api/clients/by-code/:code existe
   const CASHIER_ID = 'cash_001';
-  const LS_CAM_ID = 'tm_camera_id';       // on retient la caméra arrière choisie
+  const LS_CAM_ID = 'tm_camera_id';       // mémorise la caméra arrière choisie
   const LS_LAST_AMOUNT = 'tm_last_amount';
 
   // ========= ÉLÉMENTS =========
-  const amountForm = document.getElementById('amountForm');
-  const amountInput= document.getElementById('amount');
-  const startBtn   = document.getElementById('startBtn');
-  const switchBtn  = document.getElementById('switchBtn');
-  const uiMsg      = document.getElementById('uiMsg');
+  const amountForm   = document.getElementById('amountForm');
+  const amountInput  = document.getElementById('amount');
+  const startBtn     = document.getElementById('startBtn');
+  const switchBtn    = document.getElementById('switchBtn');
+  const uiMsg        = document.getElementById('uiMsg');
 
-  const video      = document.getElementById('preview');
-  const scanStatus = document.getElementById('scanStatus');
-  const overlayName = document.getElementById('overlayName');
+  const video        = document.getElementById('preview');
+  const scanStatus   = document.getElementById('scanStatus');
+  const overlayName  = document.getElementById('overlayName');
+
+  const codeInput    = document.getElementById('codeInput');
+  const manualBtn    = document.getElementById('manualBtn');
+
+  const clientCard    = document.getElementById('clientCard');
+  const clientName    = document.getElementById('clientName');
+  const clientCode    = document.getElementById('clientCode');
+  const clientBalance = document.getElementById('clientBalance');
+  const clientGifts   = document.getElementById('clientGifts');
+  const formMsg       = document.getElementById('formMsg');
+  const scanAgainBtn  = document.getElementById('scanAgain');
+
+  // ========= ÉTAT =========
+  const COOLDOWN_MS  = 15000;          // 15 s pour le MÊME code
+  const lastScan     = new Map();      // code_public -> timestamp
+  let busy           = false;          // vrai pendant enregistrement d'un achat
+  let queuedNext     = null;           // autre code reçu pendant busy
+  let scanning       = false;
+  let currentClient  = null;
+  let currentDeviceId = localStorage.getItem(LS_CAM_ID) || null;
+  let devicesCache   = [];
+  const reader       = new ZXingBrowser.BrowserQRCodeReader(); // QR only
+
+  // ========= OUTILS UI =========
   function showOverlay(text){
     overlayName.textContent = text;
     overlayName.classList.add('show');
     clearTimeout(showOverlay._t);
     showOverlay._t = setTimeout(()=>overlayName.classList.remove('show'), 1800);
   }
-
-
-  const codeInput  = document.getElementById('codeInput');
-  const manualBtn  = document.getElementById('manualBtn');
-
-  const clientCard   = document.getElementById('clientCard');
-  const clientName   = document.getElementById('clientName');
-  const clientCode   = document.getElementById('clientCode');
-  const clientBalance= document.getElementById('clientBalance');
-  const clientGifts  = document.getElementById('clientGifts');
-  const formMsg      = document.getElementById('formMsg');
-  const scanAgainBtn = document.getElementById('scanAgain');
-
-  const COOLDOWN_MS = 15000;           // 15 s entre deux scans du MÊME code
-  const lastScan = new Map();          // code_public -> timestamp du dernier scan accepté
-  let busy = false;                    // true pendant l'enregistrement d'un achat
-  let queuedNext = null;               // si un autre code arrive pendant busy, on le met en file
-  
-
-  // ========= ÉTAT =========
-  let scanning = false;             // on garde la caméra ouverte, mais on “pause” la lecture
-  let currentClient = null;
-  let currentDeviceId = localStorage.getItem(LS_CAM_ID) || null;
-  let devicesCache = [];
-  const reader = new ZXingBrowser.BrowserQRCodeReader(); // QR seulement → meilleure détection
-
-  // ========= OUTILS =========
   function euros(cents){ return (Number(cents||0)/100).toFixed(2) + ' €'; }
   function validAmount(){
     const v = parseFloat(String(amountInput.value).replace(',','.'));
     return (v && v>0) ? Math.round(v*100) : 0;
   }
 
+  // ========= CAMÉRAS =========
+  async function warmUpCameraPermission(){
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      s.getTracks().forEach(t => t.stop());
+    } catch(e) {
+      console.warn('warmUpCameraPermission:', e);
+    }
+  }
   async function listCameras(){
     const list = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
     devicesCache = list;
     return list;
   }
-
   function pickRearCamera(devices){
-    // 1) si on a un deviceId mémorisé : on le reprend
-    if (currentDeviceId && devices.some(d=>d.deviceId===currentDeviceId)) return currentDeviceId;
-    // 2) on cherche un label 'back'/'rear'/'environment'
+    if (currentDeviceId && devices.some(d=>d.deviceId===currentDeviceId)) {
+      return currentDeviceId;
+    }
     const re = /(back|arrière|rear|environment)/i;
     const cand = devices.find(d=>re.test(d.label));
     if (cand) return cand.deviceId;
-    // 3) sinon, on prend le dernier (souvent la caméra arrière sur mobile)
     return (devices[devices.length-1] || devices[0])?.deviceId || null;
   }
 
@@ -149,99 +153,108 @@
     }
     uiMsg.textContent = '';
     uiMsg.className = 'muted';
-  
+
     try{
-      const devices = await listCameras();
+      // 1) Permission courte (débloque enumerateDevices)
+      await warmUpCameraPermission();
+
+      // 2) Lister caméras (+ léger retry)
+      let devices = await listCameras();
       if (!devices.length){
-        scanStatus.textContent = 'Aucune caméra détectée.';
+        await new Promise(r => setTimeout(r, 150));
+        devices = await listCameras();
+      }
+      if (!devices.length){
+        scanStatus.textContent = 'Aucune caméra détectée (permission refusée ou appareil sans caméra).';
         return;
       }
-      // choisir l’arrière et mémoriser
-      const deviceId = pickRearCamera(devices);
-      currentDeviceId = deviceId;
-      localStorage.setItem(LS_CAM_ID, deviceId);
-  
-      // Contraintes vidéo “propres” pour mobile
+
+      // 3) Choisir arrière + mémoriser si possible
+      const picked = pickRearCamera(devices);
+      currentDeviceId = picked || null;
+      if (currentDeviceId) localStorage.setItem(LS_CAM_ID, currentDeviceId);
+
+      // 4) Contraintes vidéo : deviceId si connu, sinon facingMode
       const constraints = {
-        video: {
-          deviceId: { exact: deviceId },
+        video: currentDeviceId ? {
+          deviceId: { exact: currentDeviceId },
+          width:  { ideal: 1280 },
+          height: { ideal: 720 },
+          advanced: [{ focusMode: 'continuous' }, { focusMode: 'auto' }]
+        } : {
           facingMode: { ideal: 'environment' },
           width:  { ideal: 1280 },
           height: { ideal: 720 },
-          advanced: [
-            { focusMode: 'continuous' },
-            { focusMode: 'auto' }
-          ]
+          advanced: [{ focusMode: 'continuous' }, { focusMode: 'auto' }]
         },
         audio: false
       };
-  
+
       scanning = true;
-  
-      // ⬇️ ICI on LANCE vraiment le scan avec decodeFromConstraints ⬇️
+      scanStatus.textContent = 'Scanner prêt. Visez le QR…';
+
+      // 5) Démarrer ZXing
       await reader.decodeFromConstraints(constraints, video, async (result, err) => {
         if (err && !(err instanceof ZXingBrowser.NotFoundException)) {
-          // erreurs non fatales → on ignore
+          // erreurs non fatales pendant la boucle de décodage
           return;
         }
         if (!result) return;
-  
+
         const code = result.getText().trim().toUpperCase();
         const now  = Date.now();
-  
-        // 1) Anti-rescan du MÊME code pendant 15 s
+
+        // Anti-rescan 15s du MÊME code
         const last = lastScan.get(code) || 0;
-        if (now - last < COOLDOWN_MS) {
-          return; // on ignore juste ce même QR
-        }
-  
-        // 2) Si un achat est déjà en cours → file d’attente pour un AUTRE code
-        if (busy) {
-          if (queuedNext !== code) {
+        if (now - last < COOLDOWN_MS) return;
+
+        // Si une vente est en cours → file d’attente si code différent
+        if (busy){
+          if (queuedNext !== code){
             queuedNext = code;
             showOverlay('Patienter…');
           }
           return;
         }
-  
-        // 3) Traiter maintenant
+
+        // Traiter ce code
         busy = true;
         lastScan.set(code, now);
         scanStatus.textContent = 'QR détecté : ' + code;
-        showOverlay(code); // affiche le code immédiatement
-  
-        try {
+        showOverlay(code);
+
+        try{
           localStorage.setItem(LS_LAST_AMOUNT, String(amountInput.value));
-          // récupère le client
+
           const cli = await fetchClientByCode(code);
           showClient(cli);
+
           const fullname = `${cli.first_name || ''} ${cli.last_name || ''}`.trim() || 'Client';
-          showOverlay(fullname); // remplace par le NOM au centre
-  
-          // enregistre la transaction
+          showOverlay(fullname);
+
           const amount_cents = validAmount();
           await postTransaction(cli, amount_cents);
-  
-          // MAJ solde affiché
+
           cli.balance += amount_cents;
           clientBalance.textContent = (cli.balance/100).toFixed(2) + ' €';
-          formMsg.textContent = 'Achat enregistré ✔️'; formMsg.className = 'ok';
+          formMsg.textContent = 'Achat enregistré ✔️';
+          formMsg.className = 'ok';
           scanStatus.textContent = 'Prêt pour un autre QR…';
-        } catch (e) {
+        }catch(e){
           console.error(e);
-          formMsg.textContent = 'Erreur: ' + e.message; formMsg.className = 'err';
-        } finally {
+          formMsg.textContent = 'Erreur: ' + e.message;
+          formMsg.className = 'err';
+        }finally{
           busy = false;
-  
-          // 4) Si un AUTRE code est arrivé pendant le traitement, enchaîne-le tout de suite
-          if (queuedNext) {
+
+          // Enchaîner un AUTRE code arrivé pendant le traitement
+          if (queuedNext){
             const nextCode = queuedNext;
             queuedNext = null;
-  
-            const now2 = Date.now();
+
+            const now2  = Date.now();
             const last2 = lastScan.get(nextCode) || 0;
-            if (now2 - last2 >= COOLDOWN_MS) {
-              // retravailler le prochain code
+            if (now2 - last2 >= COOLDOWN_MS){
               busy = true;
               lastScan.set(nextCode, now2);
               scanStatus.textContent = 'QR détecté : ' + nextCode;
@@ -255,27 +268,27 @@
                 await postTransaction(cli2, amount_cents2);
                 cli2.balance += amount_cents2;
                 clientBalance.textContent = (cli2.balance/100).toFixed(2) + ' €';
-                formMsg.textContent = 'Achat enregistré ✔️'; formMsg.className = 'ok';
+                formMsg.textContent = 'Achat enregistré ✔️';
+                formMsg.className = 'ok';
                 scanStatus.textContent = 'Prêt pour un autre QR…';
-              } catch(e2){
+              }catch(e2){
                 console.error(e2);
-                formMsg.textContent = 'Erreur: ' + e2.message; formMsg.className = 'err';
-              } finally {
+                formMsg.textContent = 'Erreur: ' + e2.message;
+                formMsg.className = 'err';
+              }finally{
                 busy = false;
               }
             }
           }
         }
       });
-  
-      scanStatus.textContent = 'Scanner prêt. Visez le QR…';
-  
-      // 🔦 Bouton lampe si dispo (Android)
-      try {
-        const track = video.srcObject ? video.srcObject.getVideoTracks()[0] : null;
-        const caps  = track?.getCapabilities?.();
-        if (caps && 'torch' in caps) {
-          if (!document.getElementById('torchBtn')) {
+
+      // 6) Bouton lampe (lorsque le track est prêt)
+      setTimeout(() => {
+        try {
+          const track = video.srcObject ? video.srcObject.getVideoTracks()[0] : null;
+          const caps  = track && track.getCapabilities ? track.getCapabilities() : null;
+          if (caps && 'torch' in caps && !document.getElementById('torchBtn')) {
             const torchBtn = document.createElement('button');
             torchBtn.id = 'torchBtn';
             torchBtn.type = 'button';
@@ -288,42 +301,31 @@
             });
             document.getElementById('scanBox').appendChild(torchBtn);
           }
-        }
-      } catch(_) {}
+        } catch(_) {}
+      }, 250);
+
     }catch(e){
       console.error(e);
-      scanStatus.textContent = 'Impossible d’accéder à la caméra. Vérifiez les permissions.';
+      if (e && e.name === 'NotAllowedError') {
+        scanStatus.textContent = 'Accès caméra refusé. Autorise la caméra pour ce site.';
+      } else if (e && e.name === 'NotFoundError') {
+        scanStatus.textContent = 'Aucune caméra trouvée sur cet appareil.';
+      } else if (e && e.name === 'NotReadableError') {
+        scanStatus.textContent = 'Caméra occupée par une autre app. Ferme WhatsApp/Instagram puis réessaie.';
+      } else {
+        scanStatus.textContent = 'Impossible d’accéder à la caméra. Vérifie les permissions.';
+      }
     }
   }
 
-
   async function stopScanner(keepStream=true){
     try{
-      // BrowserMultiFormatReader.reset() coupe le flux ; pour éviter les re-prompts,
-      // on NE le fait pas tant qu’on reste sur la page. On “gèle” via scanning=false.
       scanning = false;
       if (!keepStream){
-        reader.reset(); // coupe totalement (utiliser si vous quittez la page)
+        reader.reset(); // coupe totalement (si vous quittez la page)
       }
     }catch(e){ console.warn(e); }
   }
-
-  switchBtn.addEventListener('click', async ()=>{
-    // bascule entre caméras : on coupe le flux et on relance sur l’autre device
-    reader.reset(); // ici volontaire: on change de device → nouveau getUserMedia
-    const devs = devicesCache.length ? devicesCache : await listCameras();
-    if (!devs.length){ scanStatus.textContent = 'Aucune caméra.'; return; }
-    const idx = devs.findIndex(d=>d.deviceId===currentDeviceId);
-    const next = devs[(idx+1) % devs.length];
-    currentDeviceId = next.deviceId;
-    localStorage.setItem(LS_CAM_ID, currentDeviceId);
-    startScanner();
-  });
-
-  amountForm.addEventListener('submit', (e)=>{
-    e.preventDefault();
-    startScanner(); // user gesture → aide iOS à autoriser la caméra
-  });
 
   // ========= API =========
   async function fetchClientByCode(code){
@@ -355,6 +357,7 @@
     return j;
   }
 
+  // ========= UI CLIENT =========
   function showClient(cli){
     currentClient = cli;
     clientName.textContent = `${cli.first_name||''} ${cli.last_name||''}`.trim() || 'Client';
@@ -364,8 +367,26 @@
     clientCard.style.display = 'block';
   }
 
-  
-  // Fallback manuel
+  // ========= ÉVÉNEMENTS =========
+  // Démarrer le scan après saisie du montant (user gesture)
+  amountForm.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    startScanner();
+  });
+
+  // Basculer de caméra
+  switchBtn.addEventListener('click', async ()=>{
+    reader.reset(); // changement de device → nouveau flux
+    const devs = devicesCache.length ? devicesCache : await listCameras();
+    if (!devs.length){ scanStatus.textContent = 'Aucune caméra.'; return; }
+    const idx = devs.findIndex(d=>d.deviceId===currentDeviceId);
+    const next = devs[(idx+1) % devs.length];
+    currentDeviceId = next.deviceId;
+    localStorage.setItem(LS_CAM_ID, currentDeviceId);
+    startScanner();
+  });
+
+  // Saisie manuelle
   manualBtn.addEventListener('click', async ()=>{
     const code = (codeInput.value||'').trim().toUpperCase();
     if (!code){
@@ -379,9 +400,8 @@
       uiMsg.className='err'; 
       return;
     }
-  
+
     try{
-      // anti-rescan 15s seulement pour le même code (cohérent avec le scan caméra)
       const now = Date.now();
       const last = lastScan.get(code) || 0;
       if (now - last < COOLDOWN_MS){
@@ -390,19 +410,16 @@
         return;
       }
       lastScan.set(code, now);
-  
+
       localStorage.setItem(LS_LAST_AMOUNT, String(amountInput.value));
-  
-      // 1) Récupérer le client
+
       const cli = await fetchClientByCode(code);
       showClient(cli);
       const fullname = `${cli.first_name || ''} ${cli.last_name || ''}`.trim() || 'Client';
-      showOverlay(fullname); // affiche le nom au centre
-  
-      // 2) Enregistrer la transaction
+      showOverlay(fullname);
+
       await postTransaction(cli, amount_cents);
-  
-      // 3) Mettre à jour l’affichage
+
       cli.balance += amount_cents;
       clientBalance.textContent = (cli.balance/100).toFixed(2) + ' €';
       formMsg.textContent = 'Achat enregistré ✔️';
@@ -415,8 +432,7 @@
     }
   });
 
-
-  // Scanner un autre QR (sans perdre la permission)
+  // Scanner un autre QR
   scanAgainBtn.addEventListener('click', ()=>{
     clientCard.style.display = 'none';
     formMsg.textContent = '';
@@ -424,12 +440,10 @@
     scanStatus.textContent = 'Visez le QR…';
   });
 
-  // Restaurer dernier montant saisi (gain de temps à la caisse)
+  // Restaurer dernier montant saisi
   const last = localStorage.getItem(LS_LAST_AMOUNT);
   if (last) amountInput.value = last;
-
-  // iOS : ne rien lancer automatiquement, attendre le clic sur “Démarrer le scan”
-  // Android/Chrome aussi : ce clic sert de “user gesture” → pas de popup à chaque fois.
 </script>
+
 </body>
 </html>
