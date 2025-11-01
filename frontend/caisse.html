@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Caisse — Scanner un QR</title>
   <link rel="stylesheet" href="./styles.css" />
-  
 </head>
 <body>
 <header class="container center">
@@ -13,9 +12,9 @@
   <h1>Caisse — Montant puis Scan QR</h1>
 </header>
 
-<main class="container two-cols">
-  <!-- Colonne 1 : Saisie montant + démarrage scanner -->
-  <section class="card">
+<main class="container">
+  <!-- SECTION 1 — visible au départ -->
+  <section id="formSection" class="card">
     <h2>1) Montant de l’achat</h2>
     <form id="amountForm" class="kv">
       <label for="amount">Montant (€)</label>
@@ -24,9 +23,7 @@
         <button id="startBtn" class="btn" type="submit">Démarrer le scan</button>
         <button id="switchBtn" class="btn outline" type="button" title="Caméra avant/arrière">Basculer caméra</button>
       </div>
-      <p class="tip">
-        Entrez le montant puis scannez le QR du client. Le passage caisse sera enregistré automatiquement.
-      </p>
+      <p class="tip">Entrez le montant puis scannez le QR du client. Le passage caisse sera enregistré automatiquement.</p>
       <p id="uiMsg" class="muted"></p>
     </form>
 
@@ -37,19 +34,20 @@
       <input id="codeInput" type="text" placeholder="Code public (ex: RKDZDR)" />
       <button id="manualBtn" class="btn" type="button">Valider avec ce code</button>
     </div>
-    <p class="tip"><small>
-      Astuce : le QR contient le code public (6 caractères). Vous pouvez le saisir ici.
-    </small></p>
+    <p class="tip"><small>Astuce : le QR contient le code public (6 caractères). Vous pouvez le saisir ici.</small></p>
   </section>
 
-  <!-- Colonne 2 : Scanner + fiche client -->
-  <section class="card">
-    <h2>2) Scanner le QR</h2>
+  <!-- SECTION 2 — cachée, remplace la section 1 pendant le scan -->
+  <section id="scanSection" class="card hidden">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h2 style="margin:0">2) Scanner le QR</h2>
+      <button id="backBtn" class="btn outline" type="button">⟵ Retour</button>
+    </div>
+
     <div id="scanBox">
       <video id="preview" playsinline muted></video>
       <div id="overlayName" class="overlay-name"></div>
-
-      <p id="scanStatus" class="muted">Appuyez sur “Démarrer le scan”.</p>
+      <p id="scanStatus" class="muted">Visez le QR…</p>
     </div>
 
     <div id="clientCard" class="card" style="display:none">
@@ -57,9 +55,6 @@
       <p class="muted kv">Code : <b id="clientCode"></b></p>
       <p class="muted kv">Solde cumulé : <b id="clientBalance">0,00 €</b> — Cadeaux : <b id="clientGifts">0</b></p>
       <p id="formMsg" class="muted"></p>
-      <div class="row">
-        <button class="btn outline" id="scanAgain" type="button">Scanner un autre QR</button>
-      </div>
     </div>
   </section>
 </main>
@@ -67,383 +62,314 @@
 <!-- Librairie scanner -->
 <script src="https://unpkg.com/@zxing/browser@latest"></script>
 <script>
-  // ========= PARAMS =========
-  const API = 'https://tontonmoh-api.azizekarma.workers.dev';
-  const USE_BY_CODE_ROUTE = true;         // /api/clients/by-code/:code existe
-  const CASHIER_ID = 'cash_001';
-  const LS_CAM_ID = 'tm_camera_id';       // mémorise la caméra arrière choisie
-  const LS_LAST_AMOUNT = 'tm_last_amount';
+/* ====== PARAMS ====== */
+const API = 'https://tontonmoh-api.azizekarma.workers.dev';
+const USE_BY_CODE_ROUTE = true;
+const CASHIER_ID = 'cash_001';
+const LS_CAM_ID = 'tm_camera_id';
+const LS_LAST_AMOUNT = 'tm_last_amount';
+const COOLDOWN_MS = 15000;
 
-  // ========= ÉLÉMENTS =========
-  const amountForm   = document.getElementById('amountForm');
-  const amountInput  = document.getElementById('amount');
-  const startBtn     = document.getElementById('startBtn');
-  const switchBtn    = document.getElementById('switchBtn');
-  const uiMsg        = document.getElementById('uiMsg');
+/* ====== ELÉMENTS ====== */
+const formSection = document.getElementById('formSection');
+const scanSection = document.getElementById('scanSection');
 
-  const video        = document.getElementById('preview');
-  const scanStatus   = document.getElementById('scanStatus');
-  const overlayName  = document.getElementById('overlayName');
+const amountForm  = document.getElementById('amountForm');
+const amountInput = document.getElementById('amount');
+const startBtn    = document.getElementById('startBtn');
+const switchBtn   = document.getElementById('switchBtn');
+const uiMsg       = document.getElementById('uiMsg');
 
-  const codeInput    = document.getElementById('codeInput');
-  const manualBtn    = document.getElementById('manualBtn');
+const codeInput   = document.getElementById('codeInput');
+const manualBtn   = document.getElementById('manualBtn');
 
-  const clientCard    = document.getElementById('clientCard');
-  const clientName    = document.getElementById('clientName');
-  const clientCode    = document.getElementById('clientCode');
-  const clientBalance = document.getElementById('clientBalance');
-  const clientGifts   = document.getElementById('clientGifts');
-  const formMsg       = document.getElementById('formMsg');
-  const scanAgainBtn  = document.getElementById('scanAgain');
+const backBtn     = document.getElementById('backBtn');
+const video       = document.getElementById('preview');
+const scanStatus  = document.getElementById('scanStatus');
+const overlayName = document.getElementById('overlayName');
 
-  // ========= ÉTAT =========
-  const COOLDOWN_MS  = 15000;          // 15 s pour le MÊME code
-  const lastScan     = new Map();      // code_public -> timestamp
-  let busy           = false;          // vrai pendant enregistrement d'un achat
-  let queuedNext     = null;           // autre code reçu pendant busy
-  let scanning       = false;
-  let currentClient  = null;
-  let currentDeviceId = localStorage.getItem(LS_CAM_ID) || null;
-  let devicesCache   = [];
-  const reader       = new ZXingBrowser.BrowserQRCodeReader(); // QR only
+const clientCard    = document.getElementById('clientCard');
+const clientName    = document.getElementById('clientName');
+const clientCode    = document.getElementById('clientCode');
+const clientBalance = document.getElementById('clientBalance');
+const clientGifts   = document.getElementById('clientGifts');
+const formMsg       = document.getElementById('formMsg');
 
-  // ========= OUTILS UI =========
-  function showOverlay(text){
-    overlayName.textContent = text;
-    overlayName.classList.add('show');
-    clearTimeout(showOverlay._t);
-    showOverlay._t = setTimeout(()=>overlayName.classList.remove('show'), 1800);
-  }
-  function euros(cents){ return (Number(cents||0)/100).toFixed(2) + ' €'; }
-  function validAmount(){
-    const v = parseFloat(String(amountInput.value).replace(',','.'));
-    return (v && v>0) ? Math.round(v*100) : 0;
-  }
+/* ====== ÉTAT ====== */
+const reader = new ZXingBrowser.BrowserQRCodeReader();
+let devicesCache = [];
+let currentDeviceId = localStorage.getItem(LS_CAM_ID) || null;
+let busy = false;
+let queuedNext = null;
+const lastScan = new Map();
 
-  // ========= CAMÉRAS =========
-  async function warmUpCameraPermission(){
-    try {
-      const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      s.getTracks().forEach(t => t.stop());
-    } catch(e) {
-      console.warn('warmUpCameraPermission:', e);
-    }
-  }
-  async function listCameras(){
-    const list = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
-    devicesCache = list;
-    return list;
-  }
-  function pickRearCamera(devices){
-    if (currentDeviceId && devices.some(d=>d.deviceId===currentDeviceId)) {
-      return currentDeviceId;
-    }
-    const re = /(back|arrière|rear|environment)/i;
-    const cand = devices.find(d=>re.test(d.label));
-    if (cand) return cand.deviceId;
-    return (devices[devices.length-1] || devices[0])?.deviceId || null;
-  }
+/* ====== UTILS ====== */
+function euros(c){ return (Number(c||0)/100).toFixed(2) + ' €'; }
+function validAmount(){
+  const v = parseFloat(String(amountInput.value).replace(',','.'));
+  return (v && v>0) ? Math.round(v*100) : 0;
+}
+function showOverlay(text){
+  overlayName.textContent = text;
+  overlayName.classList.add('show');
+  clearTimeout(showOverlay._t);
+  showOverlay._t = setTimeout(()=>overlayName.classList.remove('show'), 1800);
+}
+async function listCameras(){
+  const list = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
+  devicesCache = list;
+  return list;
+}
+function pickRearCamera(devices){
+  if (currentDeviceId && devices.some(d=>d.deviceId===currentDeviceId)) return currentDeviceId;
+  const re = /(back|arrière|rear|environment)/i;
+  const cand = devices.find(d=>re.test(d.label));
+  return (cand?.deviceId) || (devices[devices.length-1]||devices[0])?.deviceId || null;
+}
+async function warmUpCameraPermission(){
+  try { const s = await navigator.mediaDevices.getUserMedia({ video:true, audio:false }); s.getTracks().forEach(t=>t.stop()); } catch(_) {}
+}
+// petit bip à chaque scan validé
+function beep(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type='square';
+    o.frequency.value = 880;
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(); o.stop(ctx.currentTime + 0.2);
+  }catch(_){ /* pas grave si audio bloqué */ }
+}
 
-  async function startScanner(){
-    const amountCents = validAmount();
-    if (!amountCents){
-      uiMsg.textContent = 'Entrez le montant avant de scanner.';
-      uiMsg.className = 'err';
-      return;
-    }
-    uiMsg.textContent = '';
-    uiMsg.className = 'muted';
+/* ====== API ====== */
+async function fetchClientByCode(code){
+  const url = USE_BY_CODE_ROUTE
+    ? `${API}/api/clients/by-code/${encodeURIComponent(code)}`
+    : `${API}/api/clients?code_public=${encodeURIComponent(code)}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('Code inconnu');
+  return await r.json();
+}
+async function postTransaction(cli, amount_cents){
+  const txId = 'tx_' + Date.now();
+  const r = await fetch(`${API}/api/transactions`, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'X-Idempotency-Key': txId },
+    body: JSON.stringify({ id: txId, client_id: cli.id, cashier_id: CASHIER_ID, amount_cents, status:'OK', note:'Achat en caisse' }),
+  });
+  const txt = await r.text(); let j={}; try{ j=JSON.parse(txt) }catch{}
+  if (!r.ok) throw new Error(j.error||txt||'Erreur API');
+  return j;
+}
 
-    try{
-      // 1) Permission courte (débloque enumerateDevices)
-      await warmUpCameraPermission();
+/* ====== UI CLIENT ====== */
+function showClient(cli){
+  clientName.textContent = `${cli.first_name||''} ${cli.last_name||''}`.trim() || 'Client';
+  clientCode.textContent = cli.code_public || '';
+  clientBalance.textContent = euros(cli.balance);
+  clientGifts.textContent = cli.gifts_count || 0;
+  clientCard.style.display = 'block';
+}
 
-      // 2) Lister caméras (+ léger retry)
-      let devices = await listCameras();
-      if (!devices.length){
-        await new Promise(r => setTimeout(r, 150));
-        devices = await listCameras();
-      }
-      if (!devices.length){
-        scanStatus.textContent = 'Aucune caméra détectée (permission refusée ou appareil sans caméra).';
+/* ====== SCAN ====== */
+async function startScanner(){
+  const amountCents = validAmount();
+  if (!amountCents){ uiMsg.textContent='Entrez le montant avant de scanner.'; uiMsg.className='error'; return; }
+  uiMsg.textContent=''; uiMsg.className='muted';
+
+  // Remplace section 1 par section 2
+  formSection.classList.add('hidden');
+  scanSection.classList.remove('hidden');
+
+  try{
+    await warmUpCameraPermission();
+
+    let devices = await listCameras();
+    if (!devices.length){ await new Promise(r=>setTimeout(r,150)); devices = await listCameras(); }
+    if (!devices.length){ scanStatus.textContent='Aucune caméra détectée (permission ?)'; return; }
+
+    currentDeviceId = pickRearCamera(devices);
+    if (currentDeviceId) localStorage.setItem(LS_CAM_ID, currentDeviceId);
+
+    const constraints = {
+      video: currentDeviceId ? {
+        deviceId: { exact: currentDeviceId },
+        width:{ ideal:1280 }, height:{ ideal:720 },
+        advanced:[{ focusMode:'continuous' },{ focusMode:'auto' }]
+      } : {
+        facingMode:{ ideal:'environment' },
+        width:{ ideal:1280 }, height:{ ideal:720 },
+        advanced:[{ focusMode:'continuous' },{ focusMode:'auto' }]
+      },
+      audio:false
+    };
+
+    scanStatus.textContent = 'Scanner prêt. Visez le QR…';
+
+    await reader.decodeFromConstraints(constraints, video, async (result, err)=>{
+      if (err && !(err instanceof ZXingBrowser.NotFoundException)) return;
+      if (!result) return;
+
+      const code = result.getText().trim().toUpperCase();
+      const now  = Date.now();
+
+      const last = lastScan.get(code)||0;
+      if (now - last < COOLDOWN_MS) return;
+
+      if (busy){
+        if (queuedNext !== code){ queuedNext = code; showOverlay('Patienter…'); }
         return;
       }
 
-      // 3) Choisir arrière + mémoriser si possible
-      const picked = pickRearCamera(devices);
-      currentDeviceId = picked || null;
-      if (currentDeviceId) localStorage.setItem(LS_CAM_ID, currentDeviceId);
+      busy = true;
+      lastScan.set(code, now);
+      showOverlay(code);
 
-      // 4) Contraintes vidéo : deviceId si connu, sinon facingMode
-      const constraints = {
-        video: currentDeviceId ? {
-          deviceId: { exact: currentDeviceId },
-          width:  { ideal: 1280 },
-          height: { ideal: 720 },
-          advanced: [{ focusMode: 'continuous' }, { focusMode: 'auto' }]
-        } : {
-          facingMode: { ideal: 'environment' },
-          width:  { ideal: 1280 },
-          height: { ideal: 720 },
-          advanced: [{ focusMode: 'continuous' }, { focusMode: 'auto' }]
-        },
-        audio: false
-      };
+      try{
+        localStorage.setItem(LS_LAST_AMOUNT, String(amountInput.value));
 
-      scanning = true;
-      scanStatus.textContent = 'Scanner prêt. Visez le QR…';
+        const cli = await fetchClientByCode(code);
+        showClient(cli);
+        showOverlay(`${cli.first_name||''} ${cli.last_name||''}`.trim() || 'Client');
 
-      // 5) Démarrer ZXing
-      await reader.decodeFromConstraints(constraints, video, async (result, err) => {
-        if (err && !(err instanceof ZXingBrowser.NotFoundException)) {
-          // erreurs non fatales pendant la boucle de décodage
-          return;
-        }
-        if (!result) return;
+        const amount_cents = validAmount();
+        await postTransaction(cli, amount_cents);
 
-        const code = result.getText().trim().toUpperCase();
-        const now  = Date.now();
+        cli.balance += amount_cents;
+        clientBalance.textContent = euros(cli.balance);
+        formMsg.textContent = 'Achat enregistré ✔️';
+        formMsg.className = 'success';
+        scanStatus.textContent = 'Prêt pour un autre QR…';
+        beep(); // <- bip à la fin
+      }catch(e){
+        console.error(e);
+        formMsg.textContent = 'Erreur: ' + e.message;
+        formMsg.className = 'error';
+      }finally{
+        busy = false;
 
-        // Anti-rescan 15s du MÊME code
-        const last = lastScan.get(code) || 0;
-        if (now - last < COOLDOWN_MS) return;
-
-        // Si une vente est en cours → file d’attente si code différent
-        if (busy){
-          if (queuedNext !== code){
-            queuedNext = code;
-            showOverlay('Patienter…');
-          }
-          return;
-        }
-
-        // Traiter ce code
-        busy = true;
-        lastScan.set(code, now);
-        scanStatus.textContent = 'QR détecté : ' + code;
-        showOverlay(code);
-
-        try{
-          localStorage.setItem(LS_LAST_AMOUNT, String(amountInput.value));
-
-          const cli = await fetchClientByCode(code);
-          showClient(cli);
-
-          const fullname = `${cli.first_name || ''} ${cli.last_name || ''}`.trim() || 'Client';
-          showOverlay(fullname);
-
-          const amount_cents = validAmount();
-          await postTransaction(cli, amount_cents);
-
-          cli.balance += amount_cents;
-          clientBalance.textContent = (cli.balance/100).toFixed(2) + ' €';
-          formMsg.textContent = 'Achat enregistré ✔️';
-          formMsg.className = 'ok';
-          scanStatus.textContent = 'Prêt pour un autre QR…';
-        }catch(e){
-          console.error(e);
-          formMsg.textContent = 'Erreur: ' + e.message;
-          formMsg.className = 'err';
-        }finally{
-          busy = false;
-
-          // Enchaîner un AUTRE code arrivé pendant le traitement
-          if (queuedNext){
-            const nextCode = queuedNext;
-            queuedNext = null;
-
-            const now2  = Date.now();
-            const last2 = lastScan.get(nextCode) || 0;
-            if (now2 - last2 >= COOLDOWN_MS){
-              busy = true;
-              lastScan.set(nextCode, now2);
-              scanStatus.textContent = 'QR détecté : ' + nextCode;
-              showOverlay(nextCode);
-              try{
-                const cli2 = await fetchClientByCode(nextCode);
-                showClient(cli2);
-                const fullname2 = `${cli2.first_name || ''} ${cli2.last_name || ''}`.trim() || 'Client';
-                showOverlay(fullname2);
-                const amount_cents2 = validAmount();
-                await postTransaction(cli2, amount_cents2);
-                cli2.balance += amount_cents2;
-                clientBalance.textContent = (cli2.balance/100).toFixed(2) + ' €';
-                formMsg.textContent = 'Achat enregistré ✔️';
-                formMsg.className = 'ok';
-                scanStatus.textContent = 'Prêt pour un autre QR…';
-              }catch(e2){
-                console.error(e2);
-                formMsg.textContent = 'Erreur: ' + e2.message;
-                formMsg.className = 'err';
-              }finally{
-                busy = false;
-              }
+        if (queuedNext){
+          const nextCode = queuedNext; queuedNext = null;
+          const now2 = Date.now();
+          if ((now2 - (lastScan.get(nextCode)||0)) >= COOLDOWN_MS){
+            lastScan.set(nextCode, now2);
+            try{
+              const cli2 = await fetchClientByCode(nextCode);
+              showClient(cli2);
+              showOverlay(`${cli2.first_name||''} ${cli2.last_name||''}`.trim() || 'Client');
+              const amount_cents2 = validAmount();
+              await postTransaction(cli2, amount_cents2);
+              cli2.balance += amount_cents2;
+              clientBalance.textContent = euros(cli2.balance);
+              formMsg.textContent = 'Achat enregistré ✔️';
+              formMsg.className = 'success';
+              scanStatus.textContent = 'Prêt pour un autre QR…';
+              beep();
+            }catch(e2){
+              console.error(e2);
+              formMsg.textContent = 'Erreur: ' + e2.message;
+              formMsg.className = 'error';
             }
           }
         }
-      });
-
-      // 6) Bouton lampe (lorsque le track est prêt)
-      setTimeout(() => {
-        try {
-          const track = video.srcObject ? video.srcObject.getVideoTracks()[0] : null;
-          const caps  = track && track.getCapabilities ? track.getCapabilities() : null;
-          if (caps && 'torch' in caps && !document.getElementById('torchBtn')) {
-            const torchBtn = document.createElement('button');
-            torchBtn.id = 'torchBtn';
-            torchBtn.type = 'button';
-            torchBtn.className = 'btn outline';
-            torchBtn.textContent = 'Lampe';
-            torchBtn.addEventListener('click', async ()=>{
-              const s = track.getSettings();
-              const next = !s.torch;
-              await track.applyConstraints({ advanced:[{ torch: next }] });
-            });
-            document.getElementById('scanBox').appendChild(torchBtn);
-          }
-        } catch(_) {}
-      }, 250);
-
-    }catch(e){
-      console.error(e);
-      if (e && e.name === 'NotAllowedError') {
-        scanStatus.textContent = 'Accès caméra refusé. Autorise la caméra pour ce site.';
-      } else if (e && e.name === 'NotFoundError') {
-        scanStatus.textContent = 'Aucune caméra trouvée sur cet appareil.';
-      } else if (e && e.name === 'NotReadableError') {
-        scanStatus.textContent = 'Caméra occupée par une autre app. Ferme WhatsApp/Instagram puis réessaie.';
-      } else {
-        scanStatus.textContent = 'Impossible d’accéder à la caméra. Vérifie les permissions.';
       }
-    }
-  }
-
-  async function stopScanner(keepStream=true){
-    try{
-      scanning = false;
-      if (!keepStream){
-        reader.reset(); // coupe totalement (si vous quittez la page)
-      }
-    }catch(e){ console.warn(e); }
-  }
-
-  // ========= API =========
-  async function fetchClientByCode(code){
-    const url = USE_BY_CODE_ROUTE
-      ? `${API}/api/clients/by-code/${encodeURIComponent(code)}`
-      : `${API}/api/clients?code_public=${encodeURIComponent(code)}`;
-    const r = await fetch(url);
-    if (!r.ok) throw new Error('Code inconnu');
-    return await r.json();
-  }
-
-  async function postTransaction(client, amount_cents){
-    const txId = 'tx_' + Date.now();
-    const payload = {
-      id: txId,
-      client_id: client.id,
-      cashier_id: CASHIER_ID,
-      amount_cents,
-      status: 'OK',
-      note: 'Achat en caisse',
-    };
-    const r = await fetch(`${API}/api/transactions`, {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json', 'X-Idempotency-Key': txId },
-      body: JSON.stringify(payload),
     });
-    const txt = await r.text(); let j={}; try{ j=JSON.parse(txt) }catch{}
-    if (!r.ok) throw new Error(j.error||txt||'Erreur API');
-    return j;
-  }
 
-  // ========= UI CLIENT =========
-  function showClient(cli){
-    currentClient = cli;
-    clientName.textContent = `${cli.first_name||''} ${cli.last_name||''}`.trim() || 'Client';
-    clientCode.textContent = cli.code_public || '';
-    clientBalance.textContent = euros(cli.balance);
-    clientGifts.textContent = cli.gifts_count || 0;
-    clientCard.style.display = 'block';
-  }
-
-  // ========= ÉVÉNEMENTS =========
-  // Démarrer le scan après saisie du montant (user gesture)
-  amountForm.addEventListener('submit', (e)=>{
-    e.preventDefault();
-    startScanner();
-  });
-
-  // Basculer de caméra
-  switchBtn.addEventListener('click', async ()=>{
-    reader.reset(); // changement de device → nouveau flux
-    const devs = devicesCache.length ? devicesCache : await listCameras();
-    if (!devs.length){ scanStatus.textContent = 'Aucune caméra.'; return; }
-    const idx = devs.findIndex(d=>d.deviceId===currentDeviceId);
-    const next = devs[(idx+1) % devs.length];
-    currentDeviceId = next.deviceId;
-    localStorage.setItem(LS_CAM_ID, currentDeviceId);
-    startScanner();
-  });
-
-  // Saisie manuelle
-  manualBtn.addEventListener('click', async ()=>{
-    const code = (codeInput.value||'').trim().toUpperCase();
-    if (!code){
-      uiMsg.textContent='Entrez un code.'; 
-      uiMsg.className='err'; 
-      return;
-    }
-    const amount_cents = validAmount();
-    if (!amount_cents){
-      uiMsg.textContent='Entrez le montant avant de valider.'; 
-      uiMsg.className='err'; 
-      return;
-    }
-
+    // Ajout lampe si dispo
     try{
-      const now = Date.now();
-      const last = lastScan.get(code) || 0;
-      if (now - last < COOLDOWN_MS){
-        uiMsg.textContent = 'Même client scanné récemment — patientez quelques secondes.';
-        uiMsg.className = 'err';
-        return;
+      const track = video.srcObject ? video.srcObject.getVideoTracks()[0] : null;
+      const caps = track?.getCapabilities?.();
+      if (caps && 'torch' in caps && !document.getElementById('torchBtn')){
+        const torchBtn = document.createElement('button');
+        torchBtn.id='torchBtn'; torchBtn.type='button';
+        torchBtn.className='btn outline'; torchBtn.textContent='Lampe';
+        torchBtn.addEventListener('click', async ()=>{
+          const s = track.getSettings();
+          await track.applyConstraints({ advanced:[{ torch: !s.torch }] });
+        });
+        document.getElementById('scanBox').appendChild(torchBtn);
       }
-      lastScan.set(code, now);
+    }catch(_){}
+  }catch(e){
+    console.error(e);
+    scanStatus.textContent = 'Impossible d’accéder à la caméra. Vérifiez les permissions.';
+  }
+}
 
-      localStorage.setItem(LS_LAST_AMOUNT, String(amountInput.value));
+function stopScanner(fully=true){
+  try{ if (fully) reader.reset(); }catch(_){}
+  // ré-affiche la section 1
+  scanSection.classList.add('hidden');
+  formSection.classList.remove('hidden');
+  clientCard.style.display='none';
+  formMsg.textContent='';
+  scanStatus.textContent='Visez le QR…';
+}
 
-      const cli = await fetchClientByCode(code);
-      showClient(cli);
-      const fullname = `${cli.first_name || ''} ${cli.last_name || ''}`.trim() || 'Client';
-      showOverlay(fullname);
+/* ====== ÉVÉNEMENTS ====== */
+amountForm.addEventListener('submit', (e)=>{ e.preventDefault(); startScanner(); });
 
-      await postTransaction(cli, amount_cents);
+switchBtn.addEventListener('click', async ()=>{
+  let devs = devicesCache.length ? devicesCache : await listCameras();
+  if (!devs.length){ uiMsg.textContent='Aucune caméra.'; uiMsg.className='error'; return; }
+  const idx = devs.findIndex(d=>d.deviceId===currentDeviceId);
+  const next = devs[(idx+1) % devs.length];
+  currentDeviceId = next.deviceId;
+  localStorage.setItem(LS_CAM_ID, currentDeviceId);
+  uiMsg.textContent = 'Caméra sélectionnée. Cliquez sur “Démarrer le scan”.';
+  uiMsg.className = 'muted';
+  if (!scanSection.classList.contains('hidden')){ reader.reset(); startScanner(); }
+});
 
-      cli.balance += amount_cents;
-      clientBalance.textContent = (cli.balance/100).toFixed(2) + ' €';
-      formMsg.textContent = 'Achat enregistré ✔️';
-      formMsg.className = 'ok';
-      scanStatus.textContent = 'Prêt pour un autre QR…';
-    }catch(err){
-      console.error(err);
-      formMsg.textContent = 'Erreur: ' + err.message;
-      formMsg.className = 'err';
+backBtn.addEventListener('click', ()=> stopScanner(true));
+
+manualBtn.addEventListener('click', async ()=>{
+  const code = (codeInput.value||'').trim().toUpperCase();
+  if (!code){ uiMsg.textContent='Entrez un code.'; uiMsg.className='error'; return; }
+  const amount_cents = validAmount();
+  if (!amount_cents){ uiMsg.textContent='Entrez le montant avant de valider.'; uiMsg.className='error'; return; }
+
+  try{
+    const now = Date.now();
+    const last = lastScan.get(code)||0;
+    if (now - last < COOLDOWN_MS){
+      uiMsg.textContent = 'Même client scanné récemment — patientez quelques secondes.';
+      uiMsg.className = 'error';
+      return;
     }
-  });
+    lastScan.set(code, now);
 
-  // Scanner un autre QR
-  scanAgainBtn.addEventListener('click', ()=>{
-    clientCard.style.display = 'none';
-    formMsg.textContent = '';
-    scanning = true;
-    scanStatus.textContent = 'Visez le QR…';
-  });
+    localStorage.setItem(LS_LAST_AMOUNT, String(amountInput.value));
 
-  // Restaurer dernier montant saisi
-  const last = localStorage.getItem(LS_LAST_AMOUNT);
-  if (last) amountInput.value = last;
+    // on passe à la section 2 pour afficher la fiche
+    formSection.classList.add('hidden');
+    scanSection.classList.remove('hidden');
+
+    const cli = await fetchClientByCode(code);
+    showClient(cli);
+    showOverlay(`${cli.first_name||''} ${cli.last_name||''}`.trim() || 'Client');
+
+    await postTransaction(cli, amount_cents);
+    cli.balance += amount_cents;
+    clientBalance.textContent = euros(cli.balance);
+    formMsg.textContent = 'Achat enregistré ✔️';
+    formMsg.className = 'success';
+    scanStatus.textContent = 'Vous pouvez scanner un autre QR…';
+    beep();
+  }catch(err){
+    console.error(err);
+    formMsg.textContent = 'Erreur: ' + err.message;
+    formMsg.className = 'error';
+  }
+});
+
+// Pré-remplir dernier montant
+const last = localStorage.getItem(LS_LAST_AMOUNT);
+if (last) amountInput.value = last;
 </script>
-
 </body>
 </html>
