@@ -78,3 +78,40 @@ input:focus{outline:2px solid var(--primary);border-color:transparent}
   15%{ transform: translate(-50%,-50%) scale(1.02); opacity:1}
   100%{ transform: translate(-50%,-50%) scale(1); opacity:1}
 }
+
+/* ---- Mise en page caisse ---- */
+.two-cols { display:grid; gap:1rem; grid-template-columns: 1fr; }
+@media (min-width: 900px){ .two-cols{ grid-template-columns: 1fr 1fr; } }
+
+#preview { width: 100%; max-width: 440px; border-radius: 12px; background:#000; display:block; }
+#scanBox { position: relative; display:flex; flex-direction:column; align-items:center; gap:.75rem; }
+
+.row { display:flex; gap:.5rem; flex-wrap:wrap; }
+.kv { margin:.25rem 0; }
+.muted small{opacity:.8}
+.ok { color: #15803d; }
+.err { color: #b91c1c; }
+.tip { color:#475569; font-size:.95rem; }
+.hidden { display:none; }
+
+/* ---- Overlay nom au centre de la vidéo ---- */
+.overlay-name{
+  position:absolute; left:50%; top:50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0,0,0,.72);
+  color:#fff;
+  padding:10px 14px;
+  border-radius:14px;
+  font-weight:700;
+  max-width:90%;
+  text-align:center;
+  box-shadow:0 10px 24px rgba(0,0,0,.18);
+  display:none;
+  z-index: 2; /* passe au-dessus de la vidéo */
+}
+.overlay-name.show{ display:block; animation: overlay-pop 1.2s ease; }
+@keyframes overlay-pop{
+  0%{ transform:translate(-50%,-50%) scale(.9); opacity:0 }
+  15%{ transform:translate(-50%,-50%) scale(1.02); opacity:1 }
+  100%{ transform:translate(-50%,-50%) scale(1); opacity:1 }
+}
