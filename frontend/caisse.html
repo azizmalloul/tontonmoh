@@ -95,6 +95,14 @@
 
   const video      = document.getElementById('preview');
   const scanStatus = document.getElementById('scanStatus');
+  const overlayName = document.getElementById('overlayName');
+  function showOverlay(text){
+    overlayName.textContent = text;
+    overlayName.classList.add('show');
+    clearTimeout(showOverlay._t);
+    showOverlay._t = setTimeout(()=>overlayName.classList.remove('show'), 1800);
+  }
+
 
   const codeInput  = document.getElementById('codeInput');
   const manualBtn  = document.getElementById('manualBtn');
@@ -106,6 +114,12 @@
   const clientGifts  = document.getElementById('clientGifts');
   const formMsg      = document.getElementById('formMsg');
   const scanAgainBtn = document.getElementById('scanAgain');
+
+  const COOLDOWN_MS = 15000;           // 15 s entre deux scans du MÊME code
+  const lastScan = new Map();          // code_public -> timestamp du dernier scan accepté
+  let busy = false;                    // true pendant l'enregistrement d'un achat
+  let queuedNext = null;               // si un autre code arrive pendant busy, on le met en file
+  
 
   // ========= ÉTAT =========
   let scanning = false;             // on garde la caméra ouverte, mais on “pause” la lecture
@@ -176,32 +190,103 @@
   
       scanning = true;
   
-      // Utiliser decodeFromConstraints pour imposer la résolution/autofocus
+      // ⬇️ ICI on LANCE vraiment le scan avec decodeFromConstraints ⬇️
       await reader.decodeFromConstraints(constraints, video, async (result, err) => {
-        if (!scanning) return;
-        if (result) {
-          scanning = false; // geler la lecture (on garde le flux ouvert)
-          const code = result.getText().trim().toUpperCase();
-          scanStatus.textContent = 'QR détecté : ' + code;
-          localStorage.setItem(LS_LAST_AMOUNT, String(amountInput.value));
-          await handleScannedCode(code);
-          // prêt pour le suivant
-          setTimeout(()=>{ scanning = true; scanStatus.textContent='Prêt pour un autre QR…'; }, 600);
-        }
         if (err && !(err instanceof ZXingBrowser.NotFoundException)) {
-          // erreurs non “pas trouvé” → log silencieux
-          // console.warn(err);
+          // erreurs non fatales → on ignore
+          return;
+        }
+        if (!result) return;
+  
+        const code = result.getText().trim().toUpperCase();
+        const now  = Date.now();
+  
+        // 1) Anti-rescan du MÊME code pendant 15 s
+        const last = lastScan.get(code) || 0;
+        if (now - last < COOLDOWN_MS) {
+          return; // on ignore juste ce même QR
+        }
+  
+        // 2) Si un achat est déjà en cours → file d’attente pour un AUTRE code
+        if (busy) {
+          if (queuedNext !== code) {
+            queuedNext = code;
+            showOverlay('Patienter…');
+          }
+          return;
+        }
+  
+        // 3) Traiter maintenant
+        busy = true;
+        lastScan.set(code, now);
+        scanStatus.textContent = 'QR détecté : ' + code;
+        showOverlay(code); // affiche le code immédiatement
+  
+        try {
+          localStorage.setItem(LS_LAST_AMOUNT, String(amountInput.value));
+          // récupère le client
+          const cli = await fetchClientByCode(code);
+          showClient(cli);
+          const fullname = `${cli.first_name || ''} ${cli.last_name || ''}`.trim() || 'Client';
+          showOverlay(fullname); // remplace par le NOM au centre
+  
+          // enregistre la transaction
+          const amount_cents = validAmount();
+          await postTransaction(cli, amount_cents);
+  
+          // MAJ solde affiché
+          cli.balance += amount_cents;
+          clientBalance.textContent = (cli.balance/100).toFixed(2) + ' €';
+          formMsg.textContent = 'Achat enregistré ✔️'; formMsg.className = 'ok';
+          scanStatus.textContent = 'Prêt pour un autre QR…';
+        } catch (e) {
+          console.error(e);
+          formMsg.textContent = 'Erreur: ' + e.message; formMsg.className = 'err';
+        } finally {
+          busy = false;
+  
+          // 4) Si un AUTRE code est arrivé pendant le traitement, enchaîne-le tout de suite
+          if (queuedNext) {
+            const nextCode = queuedNext;
+            queuedNext = null;
+  
+            const now2 = Date.now();
+            const last2 = lastScan.get(nextCode) || 0;
+            if (now2 - last2 >= COOLDOWN_MS) {
+              // retravailler le prochain code
+              busy = true;
+              lastScan.set(nextCode, now2);
+              scanStatus.textContent = 'QR détecté : ' + nextCode;
+              showOverlay(nextCode);
+              try{
+                const cli2 = await fetchClientByCode(nextCode);
+                showClient(cli2);
+                const fullname2 = `${cli2.first_name || ''} ${cli2.last_name || ''}`.trim() || 'Client';
+                showOverlay(fullname2);
+                const amount_cents2 = validAmount();
+                await postTransaction(cli2, amount_cents2);
+                cli2.balance += amount_cents2;
+                clientBalance.textContent = (cli2.balance/100).toFixed(2) + ' €';
+                formMsg.textContent = 'Achat enregistré ✔️'; formMsg.className = 'ok';
+                scanStatus.textContent = 'Prêt pour un autre QR…';
+              } catch(e2){
+                console.error(e2);
+                formMsg.textContent = 'Erreur: ' + e2.message; formMsg.className = 'err';
+              } finally {
+                busy = false;
+              }
+            }
+          }
         }
       });
   
       scanStatus.textContent = 'Scanner prêt. Visez le QR…';
   
-      // 🔦 Tente d’activer la torche si dispo (Android)
+      // 🔦 Bouton lampe si dispo (Android)
       try {
         const track = video.srcObject ? video.srcObject.getVideoTracks()[0] : null;
         const caps  = track?.getCapabilities?.();
         if (caps && 'torch' in caps) {
-          // Ajoute un bouton lampe si pas déjà présent
           if (!document.getElementById('torchBtn')) {
             const torchBtn = document.createElement('button');
             torchBtn.id = 'torchBtn';
@@ -291,43 +376,57 @@
     clientCard.style.display = 'block';
   }
 
-  async function handleScannedCode(code){
-    formMsg.textContent = '';
+  
+  // Fallback manuel
+  manualBtn.addEventListener('click', async ()=>{
+    const code = (codeInput.value||'').trim().toUpperCase();
+    if (!code){
+      uiMsg.textContent='Entrez un code.'; 
+      uiMsg.className='err'; 
+      return;
+    }
+    const amount_cents = validAmount();
+    if (!amount_cents){
+      uiMsg.textContent='Entrez le montant avant de valider.'; 
+      uiMsg.className='err'; 
+      return;
+    }
+  
     try{
-      const amount_cents = validAmount();
-      if (!amount_cents){ uiMsg.textContent='Entrez le montant avant de scanner.'; uiMsg.className='err'; return; }
-
-      // 1) Récupérer client
+      // anti-rescan 15s seulement pour le même code (cohérent avec le scan caméra)
+      const now = Date.now();
+      const last = lastScan.get(code) || 0;
+      if (now - last < COOLDOWN_MS){
+        uiMsg.textContent = 'Même client scanné récemment — patientez quelques secondes.';
+        uiMsg.className = 'err';
+        return;
+      }
+      lastScan.set(code, now);
+  
+      localStorage.setItem(LS_LAST_AMOUNT, String(amountInput.value));
+  
+      // 1) Récupérer le client
       const cli = await fetchClientByCode(code);
       showClient(cli);
-
-      // 2) Enregistrer l’achat automatiquement
+      const fullname = `${cli.first_name || ''} ${cli.last_name || ''}`.trim() || 'Client';
+      showOverlay(fullname); // affiche le nom au centre
+  
+      // 2) Enregistrer la transaction
       await postTransaction(cli, amount_cents);
-
-      // 3) MAJ solde affiché
+  
+      // 3) Mettre à jour l’affichage
       cli.balance += amount_cents;
-      clientBalance.textContent = euros(cli.balance);
+      clientBalance.textContent = (cli.balance/100).toFixed(2) + ' €';
       formMsg.textContent = 'Achat enregistré ✔️';
       formMsg.className = 'ok';
-
-      // 4) prêt pour un autre client (on garde la caméra ouverte, relance la lecture)
-      setTimeout(()=>{ scanning = true; scanStatus.textContent='Prêt pour un autre QR…'; }, 600);
-
+      scanStatus.textContent = 'Prêt pour un autre QR…';
     }catch(err){
       console.error(err);
       formMsg.textContent = 'Erreur: ' + err.message;
       formMsg.className = 'err';
-      // relancer le scan pour réessayer
-      setTimeout(()=>{ scanning = true; }, 800);
     }
-  }
-
-  // Fallback manuel
-  manualBtn.addEventListener('click', ()=>{
-    const code = (codeInput.value||'').trim().toUpperCase();
-    if (!code){ uiMsg.textContent='Entrez un code.'; uiMsg.className='err'; return; }
-    handleScannedCode(code);
   });
+
 
   // Scanner un autre QR (sans perdre la permission)
   scanAgainBtn.addEventListener('click', ()=>{
