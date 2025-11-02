@@ -20,6 +20,8 @@
     </section>
   </main>
 
+  <!-- qrcodejs pour générer le QR si l'image statique n'existe pas -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script>
     const API = 'https://tontonmoh-api.azizekarma.workers.dev';
 
@@ -28,11 +30,7 @@
     const code = (p.get('code') || '').trim().toUpperCase();
 
     function euros(cents){ return (Number(cents||0)/100).toFixed(2) + ' €'; }
-
-    function showError(msg){
-      elContent.innerHTML = `<p class="error">${msg}</p>`;
-    }
-
+    function showError(msg){ elContent.innerHTML = `<p class="error">${msg}</p>`; }
     function txRow(tx){
       const sign = tx.status === 'OK' ? '+' : '±';
       const dt = new Date(tx.created_at || tx.createdAt || tx.ts || Date.now());
@@ -47,33 +45,37 @@
     }
 
     async function main(){
-      if (!code){
-        showError('Aucun code fourni. Ouvrez cette page via le bouton "Accéder à mon compte" depuis la page de création.');
-        return;
-      }
+      if (!code){ showError('Aucun code fourni. Ouvrez cette page via “Accéder à mon compte”.'); return; }
 
       try{
         // 1) Client + solde
         const rCli = await fetch(`${API}/api/clients/by-code/${encodeURIComponent(code)}`);
-        if (!rCli.ok){
-          const t = await rCli.text();
-          throw new Error(`Client introuvable (${t})`);
-        }
+        if (!rCli.ok) throw new Error('Client introuvable');
         const cli = await rCli.json();
 
         // 2) Transactions (dernières 20)
         const rTx = await fetch(`${API}/api/transactions?client_id=${encodeURIComponent(cli.id)}&limit=20`);
         const txs = rTx.ok ? await rTx.json() : [];
 
-        // 3) Affichage
+        // 3) Affichage (grille 2 colonnes sur desktop)
         const full = `${cli.first_name || ''} ${cli.last_name || ''}`.trim() || 'Client';
         elContent.innerHTML = `
           <div class="grid">
             <div>
               <h2 style="margin-top:0">${full}</h2>
-              <p class="muted kv">Code : <b>${cli.code_public}</b></p>
+              <p class="muted kv">Code : <b id="codePublic">${cli.code_public}</b></p>
               <p class="kv">Cumul : <b>${euros(cli.balance)}</b></p>
               <p class="kv">Cadeaux obtenus : <b>${cli.gifts_count}</b></p>
+            </div>
+
+            <div>
+              <h3 style="margin-top:0">Mon QR</h3>
+              <div class="qr-wrapper">
+                <img id="qrImg" alt="QR fidélité" style="display:none" />
+                <div id="qrBox"></div>
+              </div>
+              <p id="codeText">Code : <b>${cli.code_public}</b></p>
+              <p><a id="dlQR" class="btn" href="#" download="${cli.code_public}.png" style="display:none">Télécharger le QR</a></p>
             </div>
           </div>
 
@@ -104,6 +106,44 @@
             Conseil : gardez votre QR, chaque achat vous rapproche d’un cadeau 🎁
           </p>
         `;
+
+        // 4) QR : essayer d'abord l'image statique /static/qrcodes/CODE.png
+        const img = document.getElementById('qrImg');
+        const box = document.getElementById('qrBox');
+        const dl  = document.getElementById('dlQR');
+        const codePublic = cli.code_public;
+
+        img.src = `/static/qrcodes/${encodeURIComponent(codePublic)}.png`;
+        img.onload = () => {
+          img.style.display = 'block';
+          box.innerHTML = '';
+          dl.href = img.src;
+          dl.style.display = 'inline-block';
+        };
+        img.onerror = () => {
+          // Générer localement
+          box.innerHTML = '';
+          try{
+            const q = new QRCode(box, {
+              text: codePublic,
+              width: 256,
+              height: 256,
+              correctLevel: QRCode.CorrectLevel.M,
+            });
+            // Récupérer l'<img> générée pour proposer le téléchargement
+            setTimeout(()=>{
+              const genImg = box.querySelector('img');
+              if (genImg){
+                dl.href = genImg.src;
+                dl.style.display = 'inline-block';
+              }
+            }, 60);
+          }catch(e){
+            box.innerHTML = '<p class="error">Impossible de générer le QR.</p>';
+            console.error(e);
+          }
+        };
+
       }catch(err){
         console.error(err);
         showError('Erreur : ' + err.message);
