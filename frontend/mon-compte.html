@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mon compte — Tonton Moh</title>
+  <title>Mon compte fidélité</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -11,35 +11,106 @@
     <img src="./assets/logo.png" alt="Chez Tonton Moh" class="logo" />
     <h1>Mon compte fidélité</h1>
   </header>
-  <main class="container card">
-    <div id="account"></div>
+
+  <main class="container">
+    <section class="card" id="card">
+      <div id="content">
+        <p class="muted">Chargement…</p>
+      </div>
+    </section>
   </main>
+
   <script>
-    async function load(){
-      const p = new URLSearchParams(location.search);
-      const code = p.get('code');
-      if(!code){ document.getElementById('account').innerHTML = '<p class="error">Code manquant.</p>'; return; }
-      const res = await fetch('/api/account?code='+encodeURIComponent(code));
-      const j = await res.json();
-      if(!res.ok){ document.getElementById('account').innerHTML = '<p class="error">'+(j.error||'Erreur')+'</p>'; return; }
-      const pct = Math.min(100, Math.round(j.cumul_cents / j.threshold_cents * 100));
-      document.getElementById('account').innerHTML = `
-        <div class="center">
-          <img src="/static/qrcodes/${j.code_public}.png" class="qr" alt="QR fidélité">
-          <h2>${j.first_name}</h2>
-          <p>Cadeaux cumulés : <b>${j.gifts_count}</b></p>
-          <div style="background:#eee;height:14px;border-radius:999px;overflow:hidden">
-            <div style="height:14px;width:${pct}%;background:var(--primary)"></div>
-          </div>
-          <p class="muted">${(j.cumul_cents/100).toFixed(2)} € / ${(j.threshold_cents/100).toFixed(2)} €</p>
-        </div>
-        <h3>Derniers achats</h3>
-        <ul>
-          ${j.history.map(h => `<li>${h.date} — ${(h.amount_cents/100).toFixed(2)} €</li>`).join('')}
-        </ul>
-      `;
+    const API = 'https://tontonmoh-api.azizekarma.workers.dev';
+
+    const elContent = document.getElementById('content');
+    const p = new URLSearchParams(location.search);
+    const code = (p.get('code') || '').trim().toUpperCase();
+
+    function euros(cents){ return (Number(cents||0)/100).toFixed(2) + ' €'; }
+
+    function showError(msg){
+      elContent.innerHTML = `<p class="error">${msg}</p>`;
     }
-    load();
+
+    function txRow(tx){
+      const sign = tx.status === 'OK' ? '+' : '±';
+      const dt = new Date(tx.created_at || tx.createdAt || tx.ts || Date.now());
+      const date = dt.toLocaleString();
+      return `
+        <tr>
+          <td style="white-space:nowrap">${date}</td>
+          <td>${tx.status}</td>
+          <td style="text-align:right">${sign} ${euros(tx.amount_cents)}</td>
+          <td class="muted">${tx.note ? tx.note : ''}</td>
+        </tr>`;
+    }
+
+    async function main(){
+      if (!code){
+        showError('Aucun code fourni. Ouvrez cette page via le bouton "Accéder à mon compte" depuis la page de création.');
+        return;
+      }
+
+      try{
+        // 1) Client + solde
+        const rCli = await fetch(`${API}/api/clients/by-code/${encodeURIComponent(code)}`);
+        if (!rCli.ok){
+          const t = await rCli.text();
+          throw new Error(`Client introuvable (${t})`);
+        }
+        const cli = await rCli.json();
+
+        // 2) Transactions (dernières 20)
+        const rTx = await fetch(`${API}/api/transactions?client_id=${encodeURIComponent(cli.id)}&limit=20`);
+        const txs = rTx.ok ? await rTx.json() : [];
+
+        // 3) Affichage
+        const full = `${cli.first_name || ''} ${cli.last_name || ''}`.trim() || 'Client';
+        elContent.innerHTML = `
+          <div class="grid">
+            <div>
+              <h2 style="margin-top:0">${full}</h2>
+              <p class="muted kv">Code : <b>${cli.code_public}</b></p>
+              <p class="kv">Cumul : <b>${euros(cli.balance)}</b></p>
+              <p class="kv">Cadeaux obtenus : <b>${cli.gifts_count}</b></p>
+            </div>
+          </div>
+
+          <hr class="muted">
+
+          <h3>Mes derniers passages</h3>
+          ${
+            (txs && txs.length)
+            ? `<div style="overflow:auto">
+                 <table style="width:100%; border-collapse:collapse">
+                   <thead>
+                     <tr>
+                       <th style="text-align:left">Date</th>
+                       <th style="text-align:left">Statut</th>
+                       <th style="text-align:right">Montant</th>
+                       <th style="text-align:left">Note</th>
+                     </tr>
+                   </thead>
+                   <tbody>
+                     ${txs.map(txRow).join('')}
+                   </tbody>
+                 </table>
+               </div>`
+            : `<p class="muted">Aucune transaction pour le moment.</p>`
+          }
+
+          <p class="muted" style="margin-top:12px">
+            Conseil : gardez votre QR, chaque achat vous rapproche d’un cadeau 🎁
+          </p>
+        `;
+      }catch(err){
+        console.error(err);
+        showError('Erreur : ' + err.message);
+      }
+    }
+
+    main();
   </script>
 </body>
 </html>
