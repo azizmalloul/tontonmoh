@@ -52,11 +52,54 @@
 
     <div id="clientCard" class="card" style="display:none">
       <h3 id="clientName">Client</h3>
+      <button id="adminBtn" class="btn outline" type="button" style="float:right; margin-top:-6px;">
+        ⚙️ Admin
+      </button>
       <p class="muted kv">Code : <b id="clientCode"></b></p>
       <p class="muted kv">Solde cumulé : <b id="clientBalance">0,00 €</b> — Cadeaux : <b id="clientGifts">0</b></p>
       <p id="formMsg" class="muted"></p>
     </div>
   </section>
+
+  <!-- Admin panel (hidden) -->
+  <section id="adminPanel" class="card hidden">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h2 style="margin:0">Compte client (Admin)</h2>
+      <div class="row">
+        <button id="adminClose" class="btn outline" type="button">Fermer</button>
+      </div>
+    </div>
+  
+    <div id="adminInfo" class="kv">
+      <p><b id="adminName">—</b></p>
+      <p class="muted">Code : <b id="adminCode">—</b></p>
+    </div>
+  
+    <hr class="muted"/>
+  
+    <h3>Ajuster cumul / cadeaux</h3>
+    <form id="adminForm" class="grid">
+      <div>
+        <label for="adminBalance">Cumul (en €)</label>
+        <input id="adminBalance" type="number" step="0.01" min="0" />
+      </div>
+      <div>
+        <label for="adminGifts">Cadeaux (compteur)</label>
+        <input id="adminGifts" type="number" min="0" />
+      </div>
+      <div style="grid-column:1/-1" class="row">
+        <input id="adminReason" type="text" placeholder="Motif de l'ajustement (ex: cadeau remis / correction saisie)" style="flex:1"/>
+        <button id="adminSave" class="btn" type="submit">Enregistrer l’ajustement</button>
+      </div>
+      <p id="adminMsg" class="muted"></p>
+    </form>
+  
+    <hr class="muted"/>
+  
+    <h3>Dernières opérations</h3>
+    <div id="adminTxList" class="kv"></div>
+  </section>
+
 </main>
 
 <!-- Librairie scanner -->
@@ -102,6 +145,23 @@ let currentDeviceId = localStorage.getItem(LS_CAM_ID) || null;
 let busy = false;
 let queuedNext = null;
 const lastScan = new Map();
+
+const ADMIN_KEY_LS = 'tm_admin_key';        // on mémorise la clé admin localement
+let currentClient = null;                    // ← on suit le client courant
+
+const adminBtn     = document.getElementById('adminBtn');
+const adminPanel   = document.getElementById('adminPanel');
+const adminClose   = document.getElementById('adminClose');
+const adminForm    = document.getElementById('adminForm');
+const adminName    = document.getElementById('adminName');
+const adminCode    = document.getElementById('adminCode');
+const adminBalance = document.getElementById('adminBalance');
+const adminGifts   = document.getElementById('adminGifts');
+const adminReason  = document.getElementById('adminReason');
+const adminMsg     = document.getElementById('adminMsg');
+const adminTxList  = document.getElementById('adminTxList');
+
+
 
 /* ====== UTILS ====== */
 function euros(c){ return (Number(c||0)/100).toFixed(2) + ' €'; }
@@ -174,15 +234,53 @@ async function postTransaction(cli, amount_cents){
   return j;
 }
 
+async function fetchClientFull(clientId){
+  const r = await fetch(`${API}/api/clients/${encodeURIComponent(clientId)}/full`);
+  if(!r.ok) throw new Error('Impossible de charger le compte client');
+  return await r.json(); // { client:{...}, balance:{...}, transactions:[...] }
+}
+
+async function adminAdjustBalance(clientId, newBalanceCents, newGiftsCount, reason, cashierId){
+  const adminKey = localStorage.getItem(ADMIN_KEY_LS) || '';
+  if (!adminKey) throw new Error('Clé admin manquante');
+
+  const r = await fetch(`${API}/api/admin/balances/adjust`, {
+    method: 'POST',
+    headers: {
+      'Content-Type':'application/json',
+      'X-Admin-Key': adminKey
+    },
+    body: JSON.stringify({
+      client_id: clientId,
+      set_balance_cents: newBalanceCents,
+      set_gifts_count: newGiftsCount,
+      reason: reason || '',
+      cashier_id: cashierId || CASHIER_ID
+    })
+  });
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok || !j.ok){
+    throw new Error(j.error ? `Erreur admin: ${j.error}` : 'Ajustement refusé');
+  }
+  return j; // { ok:true, balance_cents, gifts_count }
+}
+
+
 
 /* ====== UI CLIENT ====== */
 function showClient(cli){
+  currentClient = cli; // <-- mémoriser
   clientName.textContent = `${cli.first_name||''} ${cli.last_name||''}`.trim() || 'Client';
   clientCode.textContent = cli.code_public || '';
   clientBalance.textContent = euros(cli.balance);
   clientGifts.textContent = cli.gifts_count || 0;
   clientCard.style.display = 'block';
+
+  // afficher le bouton admin si une clé existe déjà en local
+  const hasKey = !!localStorage.getItem(ADMIN_KEY_LS);
+  adminBtn.style.display = hasKey ? 'inline-block' : 'inline-block'; // on le montre toujours; la clé sera demandée au clic
 }
+
 
 /* ====== SCAN ====== */
 async function startScanner(){
@@ -363,9 +461,9 @@ manualBtn.addEventListener('click', async ()=>{
     showClient(cli);
     showOverlay(`${cli.first_name||''} ${cli.last_name||''}`.trim() || 'Client');
 
-    await postTransaction(cli, amount_cents);
-    cli.balance += amount_cents;
-    clientBalance.textContent = euros(cli.balance);
+    const r = await postTransaction(cli, amount_cents);
+    clientBalance.textContent = euros(r.balance_cents);
+    clientGifts.textContent   = r.gifts_count;
     formMsg.textContent = 'Achat enregistré ✔️';
     formMsg.className = 'success';
     scanStatus.textContent = 'Vous pouvez scanner un autre QR…';
@@ -376,6 +474,84 @@ manualBtn.addEventListener('click', async ()=>{
     formMsg.className = 'error';
   }
 });
+
+adminBtn.addEventListener('click', async ()=>{
+  try{
+    if(!currentClient) return;
+
+    // demander la clé admin si absente
+    let key = localStorage.getItem(ADMIN_KEY_LS);
+    if(!key){
+      key = prompt('Clé Admin ?');
+      if(!key) return; // annulé
+      localStorage.setItem(ADMIN_KEY_LS, key);
+    }
+
+    // charger la vue complète
+    adminMsg.textContent = 'Chargement…';
+    const full = await fetchClientFull(currentClient.id);
+
+    const name = `${full.client.first_name||''} ${full.client.last_name||''}`.trim();
+    adminName.textContent = name || 'Client';
+    adminCode.textContent = full.client.code_public || '';
+
+    // valeurs actuelles
+    const balCents = Number(full.balance?.euro_cents_accumulated || 0);
+    const gifts    = Number(full.balance?.gifts_count || 0);
+    adminBalance.value = (balCents/100).toFixed(2);
+    adminGifts.value   = gifts;
+
+    // historique
+    adminTxList.innerHTML = (full.transactions||[]).map(t=>{
+      const dt = (t.created_at||'').replace('T',' ').replace('Z','');
+      const amt = (Number(t.amount_cents||0)/100).toFixed(2)+' €';
+      return `<p class="muted"><b>${dt}</b> — ${t.status} — ${amt} — <i>${t.note||''}</i></p>`;
+    }).join('') || '<p class="muted">Aucune opération récente.</p>';
+
+    adminMsg.textContent = '';
+    // montrer le panneau
+    scanSection.classList.add('hidden');
+    formSection.classList.add('hidden');
+    adminPanel.classList.remove('hidden');
+  }catch(e){
+    console.error(e);
+    alert(e.message || String(e));
+  }
+});
+
+adminClose.addEventListener('click', ()=>{
+  adminPanel.classList.add('hidden');
+  // revenir à la section de scan (si elle était affichée)
+  scanSection.classList.remove('hidden');
+});
+
+adminForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  try{
+    if(!currentClient) return;
+    adminMsg.textContent = 'Enregistrement…';
+
+    const eurosStr = String(adminBalance.value || '0').replace(',','.');
+    const cents = Math.max(0, Math.round(parseFloat(eurosStr||'0')*100));
+    const gifts = Math.max(0, parseInt(adminGifts.value||'0', 10));
+    const reason = adminReason.value || '';
+
+    const res = await adminAdjustBalance(currentClient.id, cents, gifts, reason, CASHIER_ID);
+
+    // MAJ UI (panneau + fiche client)
+    adminMsg.textContent = 'Ajustement enregistré ✔️';
+    clientBalance.textContent = euros(res.balance_cents);
+    clientGifts.textContent   = res.gifts_count;
+
+    // garder les valeurs cohérentes si on rouvre
+    adminBalance.value = (res.balance_cents/100).toFixed(2);
+    adminGifts.value   = res.gifts_count;
+  }catch(err){
+    console.error(err);
+    adminMsg.textContent = 'Erreur: ' + err.message;
+  }
+});
+
 
 // Pré-remplir dernier montant
 const last = localStorage.getItem(LS_LAST_AMOUNT);
