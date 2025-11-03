@@ -369,10 +369,14 @@ async function startScanner(){
               const cli2 = await fetchClientByCode(nextCode);
               showClient(cli2);
               showOverlay(`${cli2.first_name||''} ${cli2.last_name||''}`.trim() || 'Client');
+        
               const amount_cents2 = validAmount();
-              await postTransaction(cli2, amount_cents2);
-              cli2.balance += amount_cents2;
-              clientBalance.textContent = euros(cli2.balance);
+              const res2 = await postTransaction(cli2, amount_cents2);
+        
+              // 🔁 utiliser la réponse serveur (après application du palier 80€)
+              clientBalance.textContent = euros(res2.balance_cents);
+              clientGifts.textContent   = res2.gifts_count;
+        
               formMsg.textContent = 'Achat enregistré ✔️';
               formMsg.className = 'success';
               scanStatus.textContent = 'Prêt pour un autre QR…';
