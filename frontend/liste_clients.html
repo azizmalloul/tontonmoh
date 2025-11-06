@@ -1,1 +1,171 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Liste des clients</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<header class="container center">
+  <img src="./assets/logo.png" alt="Chez Tonton Moh" class="logo" />
+  <h1>Liste des clients</h1>
+  <p class="muted" id="countLine">Chargement…</p>
+</header>
 
+<main class="container">
+  <section class="card">
+    <div class="row" style="gap:.5rem; align-items:center; flex-wrap:wrap">
+      <input id="q" type="search" placeholder="Rechercher (nom, prénom, email)…" style="flex:1; min-width:220px" />
+      <button id="searchBtn" class="btn outline" type="button">Rechercher</button>
+      <button id="resetBtn" class="btn outline" type="button">Réinitialiser</button>
+      <button id="refreshBtn" class="btn" type="button">Actualiser</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 style="margin-top:0">Clients</h2>
+    <p class="tip">Format : <i>index) prénom nom email téléphone</i>. Cliquez sur 🗑️ pour supprimer un client.</p>
+    <div id="list" class="kv"></div>
+    <p id="msg" class="muted"></p>
+  </section>
+</main>
+
+<script>
+const API = 'https://tontonmoh-api.azizekarma.workers.dev';
+
+// --------- Utilitaires
+function telNice(s){
+  if(!s) return '—';
+  const p = s.replace(/[^\d+]/g,'');
+  return p;
+}
+function el(tag, attrs={}, children=[]){
+  const e = document.createElement(tag);
+  Object.entries(attrs).forEach(([k,v])=>{
+    if(k==='class') e.className=v;
+    else if(k==='html') e.innerHTML=v;
+    else e.setAttribute(k,v);
+  });
+  (Array.isArray(children)?children:[children]).filter(Boolean).forEach(c=>{
+    e.appendChild(typeof c==='string'?document.createTextNode(c):c);
+  });
+  return e;
+}
+
+// --------- API
+async function fetchAllClients(query=''){
+  // L'API /api/clients supporte limit/offset + q
+  const limit = 200;
+  let offset = 0;
+  let all = [];
+  while(true){
+    const url = new URL(API + '/api/clients');
+    url.searchParams.set('limit', limit);
+    url.searchParams.set('offset', offset);
+    if(query) url.searchParams.set('q', query.trim());
+    const r = await fetch(url);
+    if(!r.ok) throw new Error('Erreur chargement clients');
+    const page = await r.json();
+    all = all.concat(page || []);
+    if(!page || page.length < limit) break;
+    offset += limit;
+  }
+  return all;
+}
+
+async function deleteClient(id){
+  const r = await fetch(`${API}/api/clients/${encodeURIComponent(id)}`, { method:'DELETE' });
+  if(!r.ok) throw new Error('Suppression refusée');
+  return true;
+}
+
+// --------- UI
+const listBox = document.getElementById('list');
+const msg = document.getElementById('msg');
+const countLine = document.getElementById('countLine');
+const qInput = document.getElementById('q');
+const searchBtn = document.getElementById('searchBtn');
+const resetBtn = document.getElementById('resetBtn');
+const refreshBtn = document.getElementById('refreshBtn');
+
+let currentData = [];
+
+function renderList(data){
+  listBox.innerHTML = '';
+  if(!data.length){
+    listBox.appendChild(el('p', { class:'muted' }, 'Aucun client.'));
+    return;
+  }
+  // Affichage ligne par ligne: "n) prénom nom email téléphone" + bouton delete
+  data.forEach((c, i)=>{
+    const idx = (i+1) + ') ';
+    const line = el('div', { class:'row', style:'justify-content:space-between; align-items:center; gap:.75rem; padding:.4rem 0; border-bottom:1px dashed var(--muted,#eee);' }, [
+      el('div', {}, [
+        el('b', {}, idx),
+        document.createTextNode(`${(c.first_name||'').trim()} ${(c.last_name||'').trim()}  `),
+        el('span', { class:'muted' }, ` ${c.email || '—'}  ${telNice(c.phone_e164)}`)
+      ]),
+      el('div', {}, [
+        el('button', {
+          class:'btn outline',
+          title:'Supprimer ce client',
+          style:'--btn-bg:transparent;'
+        }, '🗑️')
+      ])
+    ]);
+
+    // clic suppression
+    line.querySelector('button').addEventListener('click', async ()=>{
+      const name = `${c.first_name||''} ${c.last_name||''}`.trim() || 'Ce client';
+      const ok = confirm(`Supprimer le compte "${name}" ?\n\nCette action supprime aussi son solde et ses transactions (ON DELETE CASCADE).`);
+      if(!ok) return;
+      try{
+        line.querySelector('button').disabled = true;
+        await deleteClient(c.id);
+        // retirer de l'UI
+        currentData = currentData.filter(x=>x.id!==c.id);
+        renderList(currentData);
+        countLine.textContent = `${currentData.length} client(s) affiché(s).`;
+        msg.textContent = 'Compte supprimé ✔️';
+        msg.className = 'success';
+      }catch(e){
+        line.querySelector('button').disabled = false;
+        msg.textContent = 'Erreur suppression: ' + e.message;
+        msg.className = 'error';
+      }
+    });
+
+    listBox.appendChild(line);
+  });
+}
+
+async function load(query=''){
+  try{
+    msg.textContent = 'Chargement…'; msg.className='muted';
+    const data = await fetchAllClients(query);
+    // tri simple par nom puis prénom
+    data.sort((a,b)=> (a.last_name||'').localeCompare(b.last_name||'', 'fr', {sensitivity:'base'})
+                      || (a.first_name||'').localeCompare(b.first_name||'', 'fr', {sensitivity:'base'}));
+    currentData = data;
+    countLine.textContent = `${data.length} client(s) au total${query? ' (filtré)' : ''}.`;
+    renderList(data);
+    msg.textContent = '';
+  }catch(e){
+    console.error(e);
+    msg.textContent = e.message || 'Erreur de chargement.';
+    msg.className = 'error';
+  }
+}
+
+// --------- Events
+searchBtn.addEventListener('click', ()=> load(qInput.value));
+resetBtn.addEventListener('click', ()=> { qInput.value=''; load(''); });
+refreshBtn.addEventListener('click', ()=> load(qInput.value));
+qInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') load(qInput.value); });
+
+// premier chargement
+load();
+</script>
+</body>
+</html>
