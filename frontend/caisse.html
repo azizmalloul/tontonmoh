@@ -29,12 +29,19 @@
 
     <hr class="muted" />
 
+    <!-- 🔄 PARTIE MODIFIÉE : ajout du bouton RFID -->
     <h3>Code manuel (si caméra indisponible)</h3>
     <div class="row">
       <input id="codeInput" type="text" placeholder="Code public (ex: RKDZDR)" />
+      <button id="rfidBtn" class="btn outline" type="button">Lire carte RFID</button>
       <button id="manualBtn" class="btn" type="button">Valider avec ce code</button>
     </div>
-    <p class="tip"><small>Astuce : le QR contient le code public (6 caractères). Vous pouvez le saisir ici.</small></p>
+    <p class="tip">
+      <small>
+        Astuce : le QR ou la carte RFID contiennent le code public (6 caractères).
+        Vous pouvez le saisir ici ou utiliser le bouton “Lire carte RFID”.
+      </small>
+    </p>
   </section>
 
   <!-- SECTION 2 — cachée, remplace la section 1 pendant le scan -->
@@ -113,6 +120,9 @@ const LS_CAM_ID = 'tm_camera_id';
 const LS_LAST_AMOUNT = 'tm_last_amount';
 const COOLDOWN_MS = 15000;
 
+// 🔴 ADAPTE CETTE LIGNE AVEC L’IP DE TON ESP32
+const RFID_BOX_URL = 'http://192.168.0.50'; // ex: boîtier ESP32 + RC522
+
 /* ====== ELÉMENTS ====== */
 const formSection = document.getElementById('formSection');
 const scanSection = document.getElementById('scanSection');
@@ -125,6 +135,7 @@ const uiMsg       = document.getElementById('uiMsg');
 
 const codeInput   = document.getElementById('codeInput');
 const manualBtn   = document.getElementById('manualBtn');
+const rfidBtn     = document.getElementById('rfidBtn');   // 👈 nouveau
 
 const backBtn     = document.getElementById('backBtn');
 const video       = document.getElementById('preview');
@@ -160,8 +171,6 @@ const adminGifts   = document.getElementById('adminGifts');
 const adminReason  = document.getElementById('adminReason');
 const adminMsg     = document.getElementById('adminMsg');
 const adminTxList  = document.getElementById('adminTxList');
-
-
 
 /* ====== UTILS ====== */
 function euros(c){ return (Number(c||0)/100).toFixed(2) + ' €'; }
@@ -265,7 +274,55 @@ async function adminAdjustBalance(clientId, newBalanceCents, newGiftsCount, reas
   return j; // { ok:true, balance_cents, gifts_count }
 }
 
+/* ====== RFID : lecture carte et remplissage du code ====== */
+async function readRfidAndFillCode(){
+  try{
+    uiMsg.textContent = 'Lecture carte RFID…';
+    uiMsg.className = 'muted';
 
+    // 1) Demander à l’ESP32 de lire une carte
+    const r1 = await fetch(RFID_BOX_URL + '/scan');   // route de ton ESP32
+    if (!r1.ok) throw new Error('Boîtier RFID injoignable');
+    const card = await r1.json();
+
+    const uid = String(card.rfid_uid || '').trim();
+    const tok = String(card.rfid_token || '').trim();
+    if (!uid || !tok){
+      throw new Error('Carte non lue (uid/token vides)');
+    }
+
+    // 2) Demander au Worker de trouver le client
+    const r2 = await fetch(API + '/api/rfid/resolve', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ rfid_uid: uid, rfid_token: tok })
+    });
+    const res = await r2.json().catch(()=> ({}));
+
+    if (!r2.ok || !res.ok || !res.client){
+      throw new Error(
+        res.error === 'not_found'
+          ? 'Carte inconnue dans la base'
+          : (res.error || 'Erreur serveur')
+      );
+    }
+
+    const cli = res.client;
+
+    // 3) Remplir le champ code + message
+    codeInput.value = cli.code_public || '';
+    uiMsg.textContent = `Carte OK : ${cli.first_name||''} ${cli.last_name||''} (code ${cli.code_public})`;
+    uiMsg.className = 'success';
+
+    // Si tu veux lancer directement l'encaissement, tu peux décommenter :
+    // manualBtn.click();
+
+  }catch(e){
+    console.error(e);
+    uiMsg.textContent = 'Erreur RFID : ' + e.message;
+    uiMsg.className = 'error';
+  }
+}
 
 /* ====== UI CLIENT ====== */
 function showClient(cli){
@@ -280,7 +337,6 @@ function showClient(cli){
   const hasKey = !!localStorage.getItem(ADMIN_KEY_LS);
   adminBtn.style.display = hasKey ? 'inline-block' : 'inline-block'; // on le montre toujours; la clé sera demandée au clic
 }
-
 
 /* ====== SCAN ====== */
 async function startScanner(){
@@ -438,6 +494,9 @@ switchBtn.addEventListener('click', async ()=>{
 });
 
 backBtn.addEventListener('click', ()=> stopScanner(true));
+
+// nouveau : clic sur le bouton RFID
+rfidBtn.addEventListener('click', readRfidAndFillCode);
 
 manualBtn.addEventListener('click', async ()=>{
   const code = (codeInput.value||'').trim().toUpperCase();
