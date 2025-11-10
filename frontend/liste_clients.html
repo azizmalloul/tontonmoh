@@ -16,7 +16,7 @@
 <main class="container">
   <section class="card">
     <div class="row" style="gap:.5rem; align-items:center; flex-wrap:wrap">
-      <input id="q" type="search" placeholder="Rechercher (nom, prénom, email, téléphone, code)…" style="flex:1; min-width:220px" />
+      <input id="q" type="search" placeholder="Rechercher (nom, prénom, email, téléphone, code, RFID)…" style="flex:1; min-width:220px" />
       <button id="searchBtn" class="btn outline" type="button">Rechercher</button>
       <button id="resetBtn" class="btn outline" type="button">Réinitialiser</button>
       <button id="refreshBtn" class="btn" type="button">Actualiser</button>
@@ -25,7 +25,10 @@
 
   <section class="card">
     <h2 style="margin-top:0">Clients</h2>
-    <p class="tip">Format : <i>index) prénom nom email téléphone</i>. Cliquez sur 🗑️ pour supprimer un client.</p>
+    <p class="tip">
+      Format : <i>index) prénom nom email téléphone code [RFID]</i>.<br/>
+      Cliquez sur <b>RFID</b> pour associer une carte, et sur 🗑️ pour supprimer un client.
+    </p>
     <div id="list" class="kv"></div>
     <p id="msg" class="muted"></p>
   </section>
@@ -43,14 +46,51 @@ function telNice(s){
 function el(tag, attrs={}, children=[]){
   const e = document.createElement(tag);
   Object.entries(attrs).forEach(([k,v])=>{
-    if(k==='class') e.className=v;
-    else if(k==='html') e.innerHTML=v;
-    else e.setAttribute(k,v);
+    if(k === 'class') e.className = v;
+    else if(k === 'html') e.innerHTML = v;
+    else e.setAttribute(k, v);
   });
   (Array.isArray(children)?children:[children]).filter(Boolean).forEach(c=>{
-    e.appendChild(typeof c==='string'?document.createTextNode(c):c);
+    e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
   });
   return e;
+}
+
+function normalizePhone(s){
+  return String(s||'').replace(/[^\d+]/g,''); // garde + et chiffres
+}
+
+// On concatène tous les champs utiles en minuscule pour la recherche
+function buildHaystack(c){
+  const phone = c.phone_e164 || '';
+  return [
+    c.first_name   || '',
+    c.last_name    || '',
+    c.email        || '',
+    phone,
+    normalizePhone(phone),     // version chiffres-seuls du téléphone
+    c.code_public  || '',
+    c.rfid_uid     || '',
+    c.rfid_token   || ''
+  ].join(' ').toLowerCase();
+}
+
+function filterClients(query, rows){
+  const q = String(query || '').trim().toLowerCase();
+  if(!q) return rows;
+
+  const tokens = q.split(/\s+/).filter(Boolean);       // supporte 1 mot ou plusieurs
+  const phoneQ = normalizePhone(q);                    // si on tape un numéro avec espaces
+  const usePhone = phoneQ.length >= 3;                 // petit seuil
+
+  return rows.filter(c => {
+    const h = buildHaystack(c);
+    // chaque mot doit matcher quelque part
+    const textOk = tokens.every(t => h.includes(t));
+    // si le query ressemble à un téléphone, on autorise aussi le match sur chiffres-seuls
+    const phoneOk = usePhone ? normalizePhone(c.phone_e164).includes(phoneQ) : true;
+    return textOk && phoneOk;
+  });
 }
 
 // --------- API
@@ -73,56 +113,61 @@ async function fetchAllClients(){
   return all;
 }
 
-function normalizePhone(s){
-  return String(s||'').replace(/[^\d+]/g,''); // garde + et chiffres
-}
-
-// On concatène tous les champs utiles en minuscule
-function buildHaystack(c){
-  const phone = c.phone_e164 || '';
-  return [
-    c.first_name || '',
-    c.last_name  || '',
-    c.email      || '',
-    phone,
-    normalizePhone(phone),     // version chiffres-seuls du téléphone
-    c.code_public || ''
-  ].join(' ').toLowerCase();
-}
-
-function filterClients(query, rows){
-  const q = String(query || '').trim().toLowerCase();
-  if(!q) return rows;
-
-  const tokens = q.split(/\s+/).filter(Boolean);       // supporte 1 mot ou plusieurs
-  const phoneQ = normalizePhone(q);                    // si on tape un numéro avec espaces
-  const usePhone = phoneQ.length >= 3;                 // petit seuil
-
-  return rows.filter(c => {
-    const h = buildHaystack(c);
-    // chaque mot doit matcher quelque part
-    const textOk = tokens.every(t => h.includes(t));
-    // si le query ressemble à un téléphone, on autorise aussi le match sur chiffres-seuls
-    const phoneOk = usePhone ? normalizePhone(c.phone_e164).includes(phoneQ) : true;
-    return textOk && phoneOk;
-  });
-}
-
-
-
 async function deleteClient(id){
   const r = await fetch(`${API}/api/clients/${encodeURIComponent(id)}`, { method:'DELETE' });
   if(!r.ok) throw new Error('Suppression refusée');
   return true;
 }
 
+// Associer une carte RFID à un client
+async function assignRfidToClient(client){
+  // 1) Demander l’UID (on pourra plus tard le recevoir automatiquement de l’ESP32)
+  let uid = prompt(`UID de la carte RFID pour "${client.first_name || ''} ${client.last_name || ''}" ?\n(ex: 69 88 DB B2 ou 6988DBB2)`);
+  if(!uid) return; // annulé
+  uid = uid.replace(/\s+/g,'').toUpperCase(); // supprime espaces, met en MAJ
+
+  // Optionnel : possibilité de taper un token personnalisé, sinon on laisse vide
+  let token = prompt('Code à écrire dans les blocs (laisser vide pour générer automatiquement tontonmoh1, 2, ...) :') || '';
+  token = token.trim();
+
+  msg.textContent = 'Association RFID en cours…';
+  msg.className = 'muted';
+
+  try{
+    const r = await fetch(API + '/api/rfid/assign', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({
+        client_id: client.id,
+        rfid_uid: uid,
+        rfid_token: token || undefined  // si vide, le Worker génère tontonmohX
+      })
+    });
+
+    const data = await r.json();
+    if(!r.ok || !data.ok){
+      throw new Error(data.error || 'Erreur API RFID');
+    }
+
+    msg.textContent = `Carte RFID associée ✔️ (token: ${data.rfid_token})`;
+    msg.className = 'success';
+
+    // On recharge la liste pour voir les nouvelles valeurs
+    await load(qInput.value);
+  }catch(e){
+    console.error(e);
+    msg.textContent = 'Erreur RFID: ' + e.message;
+    msg.className = 'error';
+  }
+}
+
 // --------- UI
-const listBox = document.getElementById('list');
-const msg = document.getElementById('msg');
-const countLine = document.getElementById('countLine');
-const qInput = document.getElementById('q');
-const searchBtn = document.getElementById('searchBtn');
-const resetBtn = document.getElementById('resetBtn');
+const listBox    = document.getElementById('list');
+const msg        = document.getElementById('msg');
+const countLine  = document.getElementById('countLine');
+const qInput     = document.getElementById('q');
+const searchBtn  = document.getElementById('searchBtn');
+const resetBtn   = document.getElementById('resetBtn');
 const refreshBtn = document.getElementById('refreshBtn');
 
 let currentData = [];
@@ -133,41 +178,59 @@ function renderList(data){
     listBox.appendChild(el('p', { class:'muted' }, 'Aucun client.'));
     return;
   }
-  // Affichage ligne par ligne: "n) prénom nom email téléphone" + bouton delete
+
   data.forEach((c, i)=>{
     const idx = (i+1) + ') ';
-    const line = el('div', { class:'row', style:'justify-content:space-between; align-items:center; gap:.75rem; padding:.4rem 0; border-bottom:1px dashed var(--muted,#eee);' }, [
+    const rfidLabel = c.rfid_token ? ` [RFID: ${c.rfid_token}]` : ' [RFID: —]';
+
+    const line = el('div', {
+      class:'row',
+      style:'justify-content:space-between; align-items:center; gap:.75rem; padding:.4rem 0; border-bottom:1px dashed var(--muted,#eee);'
+    }, [
       el('div', {}, [
         el('b', {}, idx),
         document.createTextNode(`${(c.first_name||'').trim()} ${(c.last_name||'').trim()}  `),
-        el('span', { class:'muted' }, ` ${c.email || '—'}  ${telNice(c.phone_e164)}  ${c.code_public || ''}`)
+        el('span', { class:'muted' },
+          ` ${c.email || '—'}  ${telNice(c.phone_e164)}  ${c.code_public || ''}${rfidLabel}`
+        )
       ]),
-
-      el('div', {}, [
+      el('div', { class:'row', style:'gap:.4rem' }, [
         el('button', {
           class:'btn outline',
+          'data-role':'rfid',
+          title:'Associer/mettre à jour une carte RFID pour ce client',
+          style:'--btn-bg:transparent;'
+        }, 'RFID'),
+        el('button', {
+          class:'btn outline',
+          'data-role':'delete',
           title:'Supprimer ce client',
           style:'--btn-bg:transparent;'
         }, '🗑️')
       ])
     ]);
 
+    const rfidBtn = line.querySelector('button[data-role="rfid"]');
+    const delBtn  = line.querySelector('button[data-role="delete"]');
+
+    // clic RFID
+    rfidBtn.addEventListener('click', () => assignRfidToClient(c));
+
     // clic suppression
-    line.querySelector('button').addEventListener('click', async ()=>{
+    delBtn.addEventListener('click', async ()=>{
       const name = `${c.first_name||''} ${c.last_name||''}`.trim() || 'Ce client';
       const ok = confirm(`Supprimer le compte "${name}" ?\n\nCette action supprime aussi son solde et ses transactions (ON DELETE CASCADE).`);
       if(!ok) return;
       try{
-        line.querySelector('button').disabled = true;
+        delBtn.disabled = true;
         await deleteClient(c.id);
-        // retirer de l'UI
-        currentData = currentData.filter(x=>x.id!==c.id);
+        currentData = currentData.filter(x=>x.id !== c.id);
         renderList(currentData);
         countLine.textContent = `${currentData.length} client(s) affiché(s).`;
         msg.textContent = 'Compte supprimé ✔️';
         msg.className = 'success';
       }catch(e){
-        line.querySelector('button').disabled = false;
+        delBtn.disabled = false;
         msg.textContent = 'Erreur suppression: ' + e.message;
         msg.className = 'error';
       }
@@ -181,15 +244,17 @@ async function load(query=''){
   try{
     msg.textContent = 'Chargement…'; msg.className='muted';
 
-    const all = await fetchAllClients();        // on charge tout
-    const data = filterClients(query, all);     // on filtre en local
+    const all  = await fetchAllClients();        // on charge tout
+    const data = filterClients(query, all);      // on filtre en local
 
     // tri simple par nom puis prénom
-    data.sort((a,b)=> (a.last_name||'').localeCompare(b.last_name||'', 'fr', {sensitivity:'base'})
-                      || (a.first_name||'').localeCompare(b.first_name||'', 'fr', {sensitivity:'base'}));
+    data.sort((a,b)=>
+      (a.last_name  ||'').localeCompare(b.last_name  ||'', 'fr', {sensitivity:'base'}) ||
+      (a.first_name ||'').localeCompare(b.first_name ||'', 'fr', {sensitivity:'base'})
+    );
 
     currentData = data;
-    countLine.textContent = `${data.length} client(s) au total${query? ' (filtré)' : ''}.`;
+    countLine.textContent = `${data.length} client(s) au total${query ? ' (filtré)' : ''}.`;
     renderList(data);
     msg.textContent = '';
   }catch(e){
@@ -199,12 +264,11 @@ async function load(query=''){
   }
 }
 
-
 // --------- Events
-searchBtn.addEventListener('click', ()=> load(qInput.value));
-resetBtn.addEventListener('click', ()=> { qInput.value=''; load(''); });
+searchBtn .addEventListener('click', ()=> load(qInput.value));
+resetBtn  .addEventListener('click', ()=> { qInput.value=''; load(''); });
 refreshBtn.addEventListener('click', ()=> load(qInput.value));
-qInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') load(qInput.value); });
+qInput    .addEventListener('keydown', (e)=>{ if(e.key==='Enter') load(qInput.value); });
 
 // premier chargement
 load();
