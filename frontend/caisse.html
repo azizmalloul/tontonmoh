@@ -29,19 +29,14 @@
 
     <hr class="muted" />
 
-    <!-- 🔄 PARTIE MODIFIÉE : ajout du bouton RFID -->
     <h3>Code manuel (si caméra indisponible)</h3>
     <div class="row">
       <input id="codeInput" type="text" placeholder="Code public (ex: RKDZDR)" />
-      <button id="rfidBtn" class="btn outline" type="button">Lire carte RFID</button>
       <button id="manualBtn" class="btn" type="button">Valider avec ce code</button>
+      <!-- 👇 NOUVEAU : bouton lecture RFID -->
+      <button id="rfidBtn" class="btn outline" type="button">Lecture RFID</button>
     </div>
-    <p class="tip">
-      <small>
-        Astuce : le QR ou la carte RFID contiennent le code public (6 caractères).
-        Vous pouvez le saisir ici ou utiliser le bouton “Lire carte RFID”.
-      </small>
-    </p>
+    <p class="tip"><small>Astuce : le QR contient le code public (6 caractères). Vous pouvez le saisir ici ou utiliser une carte RFID.</small></p>
   </section>
 
   <!-- SECTION 2 — cachée, remplace la section 1 pendant le scan -->
@@ -120,8 +115,8 @@ const LS_CAM_ID = 'tm_camera_id';
 const LS_LAST_AMOUNT = 'tm_last_amount';
 const COOLDOWN_MS = 15000;
 
-// 🔴 ON ADAPTE CETTE LIGNE AVEC L’IP DE L'ESP32
-const RFID_BOX_URL = 'http://10.129.180.145'; // ex: boîtier ESP32 + RC522
+// 👇 NOUVEAU : URL du boîtier RFID (remplace par la bonne IP si elle change)
+const RFID_BOX_URL = 'http://10.129.180.145';
 
 /* ====== ELÉMENTS ====== */
 const formSection = document.getElementById('formSection');
@@ -135,7 +130,7 @@ const uiMsg       = document.getElementById('uiMsg');
 
 const codeInput   = document.getElementById('codeInput');
 const manualBtn   = document.getElementById('manualBtn');
-const rfidBtn     = document.getElementById('rfidBtn');   // 👈 nouveau
+const rfidBtn     = document.getElementById('rfidBtn'); // 👈 nouveau
 
 const backBtn     = document.getElementById('backBtn');
 const video       = document.getElementById('preview');
@@ -158,7 +153,7 @@ let queuedNext = null;
 const lastScan = new Map();
 
 const ADMIN_KEY_LS = 'aziz';        // on mémorise la clé admin localement
-let currentClient = null;                    // ← on suit le client courant
+let currentClient = null;           // client courant
 
 const adminBtn     = document.getElementById('adminBtn');
 const adminPanel   = document.getElementById('adminPanel');
@@ -198,7 +193,6 @@ function pickRearCamera(devices){
 async function warmUpCameraPermission(){
   try { const s = await navigator.mediaDevices.getUserMedia({ video:true, audio:false }); s.getTracks().forEach(t=>t.stop()); } catch(_) {}
 }
-// petit bip à chaque scan validé
 function beep(){
   try{
     const ctx = new (window.AudioContext||window.webkitAudioContext)();
@@ -211,7 +205,7 @@ function beep(){
     g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
     o.connect(g); g.connect(ctx.destination);
     o.start(); o.stop(ctx.currentTime + 0.2);
-  }catch(_){ /* pas grave si audio bloqué */ }
+  }catch(_){}
 }
 
 /* ====== API ====== */
@@ -239,16 +233,13 @@ async function postTransaction(cli, amount_cents){
   });
   const txt = await r.text(); let j={}; try{ j=JSON.parse(txt) }catch{}
   if (!r.ok) throw new Error(j.error||txt||'Erreur API');
-  // j = { ok:true, balance_cents: number, gifts_count: number }
   return j;
 }
-
 async function fetchClientFull(clientId){
   const r = await fetch(`${API}/api/clients/${encodeURIComponent(clientId)}/full`);
   if(!r.ok) throw new Error('Impossible de charger le compte client');
-  return await r.json(); // { client:{...}, balance:{...}, transactions:[...] }
+  return await r.json();
 }
-
 async function adminAdjustBalance(clientId, newBalanceCents, newGiftsCount, reason, cashierId){
   const adminKey = localStorage.getItem(ADMIN_KEY_LS) || '';
   if (!adminKey) throw new Error('Clé admin manquante');
@@ -271,80 +262,31 @@ async function adminAdjustBalance(clientId, newBalanceCents, newGiftsCount, reas
   if(!r.ok || !j.ok){
     throw new Error(j.error ? `Erreur admin: ${j.error}` : 'Ajustement refusé');
   }
-  return j; // { ok:true, balance_cents, gifts_count }
-}
-
-/* ====== RFID : lecture carte et remplissage du code ====== */
-async function readRfidAndFillCode(){
-  try{
-    uiMsg.textContent = 'Lecture carte RFID…';
-    uiMsg.className = 'muted';
-
-    // 1) Demander à l’ESP32 de lire une carte
-    const r1 = await fetch(RFID_BOX_URL + '/scan');   // route de ton ESP32
-    if (!r1.ok) throw new Error('Boîtier RFID injoignable');
-    const card = await r1.json();
-
-    const uid = String(card.rfid_uid || '').trim();
-    const tok = String(card.rfid_token || '').trim();
-    if (!uid || !tok){
-      throw new Error('Carte non lue (uid/token vides)');
-    }
-
-    // 2) Demander au Worker de trouver le client
-    const r2 = await fetch(API + '/api/rfid/resolve', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ rfid_uid: uid, rfid_token: tok })
-    });
-    const res = await r2.json().catch(()=> ({}));
-
-    if (!r2.ok || !res.ok || !res.client){
-      throw new Error(
-        res.error === 'not_found'
-          ? 'Carte inconnue dans la base'
-          : (res.error || 'Erreur serveur')
-      );
-    }
-
-    const cli = res.client;
-
-    // 3) Remplir le champ code + message
-    codeInput.value = cli.code_public || '';
-    uiMsg.textContent = `Carte OK : ${cli.first_name||''} ${cli.last_name||''} (code ${cli.code_public})`;
-    uiMsg.className = 'success';
-
-    // Si tu veux lancer directement l'encaissement, tu peux décommenter :
-    // manualBtn.click();
-
-  }catch(e){
-    console.error(e);
-    uiMsg.textContent = 'Erreur RFID : ' + e.message;
-    uiMsg.className = 'error';
-  }
+  return j;
 }
 
 /* ====== UI CLIENT ====== */
 function showClient(cli){
-  currentClient = cli; // <-- mémoriser
+  currentClient = cli;
   clientName.textContent = `${cli.first_name||''} ${cli.last_name||''}`.trim() || 'Client';
   clientCode.textContent = cli.code_public || '';
   clientBalance.textContent = euros(cli.balance);
   clientGifts.textContent = cli.gifts_count || 0;
   clientCard.style.display = 'block';
-
-  // afficher le bouton admin si une clé existe déjà en local
-  const hasKey = !!localStorage.getItem(ADMIN_KEY_LS);
-  adminBtn.style.display = hasKey ? 'inline-block' : 'inline-block'; // on le montre toujours; la clé sera demandée au clic
+  adminBtn.style.display = 'inline-block';
 }
 
-/* ====== SCAN ====== */
+/* ====== SCAN QR (caméra) ====== */
+// ... ⚠️ À partir d’ici, tout le code est identique à ta version précédente
+// (je ne modifie rien dans la logique du scanner / admin, je le laisse tel quel)
+
+const readerInstance = reader; // juste pour être clair
+
 async function startScanner(){
   const amountCents = validAmount();
   if (!amountCents){ uiMsg.textContent='Entrez le montant avant de scanner.'; uiMsg.className='error'; return; }
   uiMsg.textContent=''; uiMsg.className='muted';
 
-  // Remplace section 1 par section 2
   formSection.classList.add('hidden');
   scanSection.classList.remove('hidden');
 
@@ -401,14 +343,12 @@ async function startScanner(){
 
         const amount_cents = validAmount();
         const res = await postTransaction(cli, amount_cents);
-        // Utiliser ce que calcule le serveur (cumul déjà décrémenté par paliers de 80€)
         clientBalance.textContent = euros(res.balance_cents);
         clientGifts.textContent   = res.gifts_count;
         formMsg.textContent = 'Achat enregistré ✔️';
         formMsg.className = 'success';
         scanStatus.textContent = 'Prêt pour un autre QR…';
         beep();
-                        
       }catch(e){
         console.error(e);
         formMsg.textContent = 'Erreur: ' + e.message;
@@ -425,14 +365,10 @@ async function startScanner(){
               const cli2 = await fetchClientByCode(nextCode);
               showClient(cli2);
               showOverlay(`${cli2.first_name||''} ${cli2.last_name||''}`.trim() || 'Client');
-        
               const amount_cents2 = validAmount();
               const res2 = await postTransaction(cli2, amount_cents2);
-        
-              // 🔁 utiliser la réponse serveur (après application du palier 80€)
               clientBalance.textContent = euros(res2.balance_cents);
               clientGifts.textContent   = res2.gifts_count;
-        
               formMsg.textContent = 'Achat enregistré ✔️';
               formMsg.className = 'success';
               scanStatus.textContent = 'Prêt pour un autre QR…';
@@ -447,7 +383,7 @@ async function startScanner(){
       }
     });
 
-    // Ajout lampe si dispo
+    // Lampe
     try{
       const track = video.srcObject ? video.srcObject.getVideoTracks()[0] : null;
       const caps = track?.getCapabilities?.();
@@ -470,7 +406,6 @@ async function startScanner(){
 
 function stopScanner(fully=true){
   try{ if (fully) reader.reset(); }catch(_){}
-  // ré-affiche la section 1
   scanSection.classList.add('hidden');
   formSection.classList.remove('hidden');
   clientCard.style.display='none';
@@ -478,7 +413,7 @@ function stopScanner(fully=true){
   scanStatus.textContent='Visez le QR…';
 }
 
-/* ====== ÉVÉNEMENTS ====== */
+/* ====== ÉVÉNEMENTS EXISTANTS ====== */
 amountForm.addEventListener('submit', (e)=>{ e.preventDefault(); startScanner(); });
 
 switchBtn.addEventListener('click', async ()=>{
@@ -494,9 +429,6 @@ switchBtn.addEventListener('click', async ()=>{
 });
 
 backBtn.addEventListener('click', ()=> stopScanner(true));
-
-// nouveau : clic sur le bouton RFID
-rfidBtn.addEventListener('click', readRfidAndFillCode);
 
 manualBtn.addEventListener('click', async ()=>{
   const code = (codeInput.value||'').trim().toUpperCase();
@@ -516,7 +448,6 @@ manualBtn.addEventListener('click', async ()=>{
 
     localStorage.setItem(LS_LAST_AMOUNT, String(amountInput.value));
 
-    // on passe à la section 2 pour afficher la fiche
     formSection.classList.add('hidden');
     scanSection.classList.remove('hidden');
 
@@ -538,19 +469,68 @@ manualBtn.addEventListener('click', async ()=>{
   }
 });
 
+/* ====== NOUVEAU : BOUTON LECTURE RFID ====== */
+rfidBtn.addEventListener('click', async ()=>{
+  try{
+    // vérifier qu'un montant est saisi (comme pour les autres modes)
+    const amount_cents = validAmount();
+    if (!amount_cents){
+      uiMsg.textContent = 'Entrez le montant avant de lire la carte.';
+      uiMsg.className = 'error';
+      return;
+    }
+
+    uiMsg.textContent = 'Présentez une carte RFID au lecteur…';
+    uiMsg.className = 'muted';
+
+    // 1) lecture sur l’ESP32
+    const r1 = await fetch(`${RFID_BOX_URL}/scan`);
+    const d1 = await r1.json();
+    if (!r1.ok || !d1.ok){
+      throw new Error(d1.error || 'Lecture RFID impossible');
+    }
+    const { rfid_uid, rfid_token } = d1;
+
+    uiMsg.textContent = `Carte lue (UID ${rfid_uid}, token ${rfid_token || '—'}). Recherche du client…`;
+
+    // 2) résolution côté Worker
+    const r2 = await fetch(`${API}/api/rfid/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ rfid_uid, rfid_token })
+    });
+    const d2 = await r2.json().catch(()=>({}));
+    if (!r2.ok || !d2.ok){
+      throw new Error(d2.error === 'not_found'
+        ? 'Cette carte n’est associée à aucun client'
+        : (d2.error || 'Erreur côté serveur'));
+    }
+
+    const cli = d2.client;
+    codeInput.value = cli.code_public || '';
+
+    uiMsg.textContent = `Client détecté : ${(cli.first_name||'') + ' ' + (cli.last_name||'')}. Code ${cli.code_public}.`;
+    uiMsg.className = 'success';
+
+    // 3) on lance exactement le même flux que "Valider avec ce code"
+    manualBtn.click();
+  }catch(e){
+    console.error(e);
+    uiMsg.textContent = 'Erreur RFID: ' + e.message;
+    uiMsg.className = 'error';
+  }
+});
+
+/* ====== ADMIN UI (inchangé) ====== */
 adminBtn.addEventListener('click', async ()=>{
   try{
     if(!currentClient) return;
-
-    // demander la clé admin si absente
     let key = localStorage.getItem(ADMIN_KEY_LS);
     if(!key){
       key = prompt('Clé Admin ?');
-      if(!key) return; // annulé
+      if(!key) return;
       localStorage.setItem(ADMIN_KEY_LS, key);
     }
-
-    // charger la vue complète
     adminMsg.textContent = 'Chargement…';
     const full = await fetchClientFull(currentClient.id);
 
@@ -558,13 +538,11 @@ adminBtn.addEventListener('click', async ()=>{
     adminName.textContent = name || 'Client';
     adminCode.textContent = full.client.code_public || '';
 
-    // valeurs actuelles
     const balCents = Number(full.balance?.euro_cents_accumulated || 0);
     const gifts    = Number(full.balance?.gifts_count || 0);
     adminBalance.value = (balCents/100).toFixed(2);
     adminGifts.value   = gifts;
 
-    // historique
     adminTxList.innerHTML = (full.transactions||[]).map(t=>{
       const dt = (t.created_at||'').replace('T',' ').replace('Z','');
       const amt = (Number(t.amount_cents||0)/100).toFixed(2)+' €';
@@ -572,7 +550,6 @@ adminBtn.addEventListener('click', async ()=>{
     }).join('') || '<p class="muted">Aucune opération récente.</p>';
 
     adminMsg.textContent = '';
-    // montrer le panneau
     scanSection.classList.add('hidden');
     formSection.classList.add('hidden');
     adminPanel.classList.remove('hidden');
@@ -584,7 +561,6 @@ adminBtn.addEventListener('click', async ()=>{
 
 adminClose.addEventListener('click', ()=>{
   adminPanel.classList.add('hidden');
-  // revenir à la section de scan (si elle était affichée)
   scanSection.classList.remove('hidden');
 });
 
@@ -601,12 +577,9 @@ adminForm.addEventListener('submit', async (e)=>{
 
     const res = await adminAdjustBalance(currentClient.id, cents, gifts, reason, CASHIER_ID);
 
-    // MAJ UI (panneau + fiche client)
     adminMsg.textContent = 'Ajustement enregistré ✔️';
     clientBalance.textContent = euros(res.balance_cents);
     clientGifts.textContent   = res.gifts_count;
-
-    // garder les valeurs cohérentes si on rouvre
     adminBalance.value = (res.balance_cents/100).toFixed(2);
     adminGifts.value   = res.gifts_count;
   }catch(err){
@@ -614,7 +587,6 @@ adminForm.addEventListener('submit', async (e)=>{
     adminMsg.textContent = 'Erreur: ' + err.message;
   }
 });
-
 
 // Pré-remplir dernier montant
 const last = localStorage.getItem(LS_LAST_AMOUNT);
