@@ -28,13 +28,13 @@
     <p class="tip">
       Format : <i>index) prénom nom email téléphone code [RFID]</i>.<br/>
       Cliquez sur <b>Compte</b> pour voir le solde + l’historique et ajuster le cumul / cadeaux.<br/>
-      Cliquez sur <b>RFID</b> pour associer une carte, et sur 🗑️ pour supprimer un client.
+      Cliquez sur 🗑️ pour supprimer un client.
     </p>
     <div id="list" class="kv"></div>
     <p id="msg" class="muted"></p>
   </section>
 
-  <!-- ===== NOUVEAU : panneau "Compte client" ===== -->
+  <!-- ===== panneau "Compte client" ===== -->
   <section class="card hidden" id="accountPanel">
     <div class="row" style="justify-content:space-between;align-items:center">
       <h2 style="margin:0">Compte client</h2>
@@ -74,7 +74,7 @@
 
 <script>
 const API = 'https://tontonmoh-api.azizekarma.workers.dev';
-const ADMIN_KEY_LS = 'aziz';      // même clé locale que dans caisse.html
+const ADMIN_KEY_LS = 'aziz';
 const CASHIER_ID   = 'cash_admin';
 
 // --------- Utilitaires
@@ -152,7 +152,7 @@ async function deleteClient(id){
   return true;
 }
 
-// --------- API "compte client" (comme dans caisse.html)
+// --------- API "compte client"
 async function fetchClientFull(clientId){
   const r = await fetch(`${API}/api/clients/${encodeURIComponent(clientId)}/full`);
   if(!r.ok) throw new Error('Impossible de charger le compte client');
@@ -184,46 +184,7 @@ async function adminAdjustBalance(clientId, newBalanceCents, newGiftsCount, reas
   if(!r.ok || !j.ok){
     throw new Error(j.error ? `Erreur admin: ${j.error}` : 'Ajustement refusé');
   }
-  return j;   // { ok, balance_cents, gifts_count }
-}
-
-// --------- Associer une carte RFID à un client
-async function assignRfidToClient(client){
-  let uid = prompt(`UID de la carte RFID pour "${client.first_name || ''} ${client.last_name || ''}" ?\n(ex: 69 88 DB B2 ou 6988DBB2)`);
-  if(!uid) return;
-  uid = uid.replace(/\s+/g,'').toUpperCase();
-
-  let token = prompt('Code à écrire dans les blocs (laisser vide pour générer automatiquement tontonmoh1, 2, ...) :') || '';
-  token = token.trim();
-
-  msg.textContent = 'Association RFID en cours…';
-  msg.className = 'muted';
-
-  try{
-    const r = await fetch(API + '/api/rfid/assign', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({
-        client_id: client.id,
-        rfid_uid: uid,
-        rfid_token: token || undefined
-      })
-    });
-
-    const data = await r.json();
-    if(!r.ok || !data.ok){
-      throw new Error(data.error || 'Erreur API RFID');
-    }
-
-    msg.textContent = `Carte RFID associée ✔️ (token: ${data.rfid_token})`;
-    msg.className = 'success';
-
-    await load(qInput.value);
-  }catch(e){
-    console.error(e);
-    msg.textContent = 'Erreur RFID: ' + e.message;
-    msg.className = 'error';
-  }
+  return j;
 }
 
 // --------- UI liste
@@ -267,12 +228,6 @@ function renderList(data){
         }, 'Compte'),
         el('button', {
           class:'btn outline',
-          'data-role':'rfid',
-          title:'Associer/mettre à jour une carte RFID pour ce client',
-          style:'--btn-bg:transparent;'
-        }, 'RFID'),
-        el('button', {
-          class:'btn outline',
           'data-role':'delete',
           title:'Supprimer ce client',
           style:'--btn-bg:transparent;'
@@ -281,11 +236,9 @@ function renderList(data){
     ]);
 
     const accountBtn = line.querySelector('button[data-role="account"]');
-    const rfidBtn    = line.querySelector('button[data-role="rfid"]');
     const delBtn     = line.querySelector('button[data-role="delete"]');
 
     accountBtn.addEventListener('click', () => openAccount(c));
-    rfidBtn   .addEventListener('click', () => assignRfidToClient(c));
 
     delBtn.addEventListener('click', async ()=>{
       const name = `${c.first_name||''} ${c.last_name||''}`.trim() || 'Ce client';
