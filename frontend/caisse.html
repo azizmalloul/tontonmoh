@@ -33,10 +33,12 @@
     <div class="row">
       <input id="codeInput" type="text" placeholder="Code public (ex: RKDZDR)" />
       <button id="manualBtn" class="btn" type="button">Valider avec ce code</button>
-      <!-- 👇 NOUVEAU : bouton lecture RFID -->
-      <button id="rfidBtn" class="btn outline" type="button">Lecture RFID</button>
     </div>
-    <p class="tip"><small>Astuce : le QR contient le code public (6 caractères). Vous pouvez le saisir ici ou utiliser une carte RFID.</small></p>
+    <p class="tip">
+      <small>
+        Astuce : le QR contient le code public (6 caractères). Vous pouvez le saisir ici si la caméra ne fonctionne pas.
+      </small>
+    </p>
   </section>
 
   <!-- SECTION 2 — cachée, remplace la section 1 pendant le scan -->
@@ -115,9 +117,6 @@ const LS_CAM_ID = 'tm_camera_id';
 const LS_LAST_AMOUNT = 'tm_last_amount';
 const COOLDOWN_MS = 15000;
 
-// 👇 NOUVEAU : URL du boîtier RFID (remplace par la bonne IP si elle change)
-const RFID_BOX_URL = 'http://10.129.180.145';
-
 /* ====== ELÉMENTS ====== */
 const formSection = document.getElementById('formSection');
 const scanSection = document.getElementById('scanSection');
@@ -130,7 +129,6 @@ const uiMsg       = document.getElementById('uiMsg');
 
 const codeInput   = document.getElementById('codeInput');
 const manualBtn   = document.getElementById('manualBtn');
-const rfidBtn     = document.getElementById('rfidBtn'); // 👈 nouveau
 
 const backBtn     = document.getElementById('backBtn');
 const video       = document.getElementById('preview');
@@ -277,8 +275,6 @@ function showClient(cli){
 }
 
 /* ====== SCAN QR (caméra) ====== */
-// ... ⚠️ À partir d’ici, tout le code est identique à ta version précédente
-// (je ne modifie rien dans la logique du scanner / admin, je le laisse tel quel)
 
 const readerInstance = reader; // juste pour être clair
 
@@ -466,58 +462,6 @@ manualBtn.addEventListener('click', async ()=>{
     console.error(err);
     formMsg.textContent = 'Erreur: ' + err.message;
     formMsg.className = 'error';
-  }
-});
-
-/* ====== NOUVEAU : BOUTON LECTURE RFID ====== */
-rfidBtn.addEventListener('click', async ()=>{
-  try{
-    // vérifier qu'un montant est saisi (comme pour les autres modes)
-    const amount_cents = validAmount();
-    if (!amount_cents){
-      uiMsg.textContent = 'Entrez le montant avant de lire la carte.';
-      uiMsg.className = 'error';
-      return;
-    }
-
-    uiMsg.textContent = 'Présentez une carte RFID au lecteur…';
-    uiMsg.className = 'muted';
-
-    // 1) lecture sur l’ESP32
-    const r1 = await fetch(`${RFID_BOX_URL}/scan`);
-    const d1 = await r1.json();
-    if (!r1.ok || !d1.ok){
-      throw new Error(d1.error || 'Lecture RFID impossible');
-    }
-    const { rfid_uid, rfid_token } = d1;
-
-    uiMsg.textContent = `Carte lue (UID ${rfid_uid}, token ${rfid_token || '—'}). Recherche du client…`;
-
-    // 2) résolution côté Worker
-    const r2 = await fetch(`${API}/api/rfid/resolve`, {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ rfid_uid, rfid_token })
-    });
-    const d2 = await r2.json().catch(()=>({}));
-    if (!r2.ok || !d2.ok){
-      throw new Error(d2.error === 'not_found'
-        ? 'Cette carte n’est associée à aucun client'
-        : (d2.error || 'Erreur côté serveur'));
-    }
-
-    const cli = d2.client;
-    codeInput.value = cli.code_public || '';
-
-    uiMsg.textContent = `Client détecté : ${(cli.first_name||'') + ' ' + (cli.last_name||'')}. Code ${cli.code_public}.`;
-    uiMsg.className = 'success';
-
-    // 3) on lance exactement le même flux que "Valider avec ce code"
-    manualBtn.click();
-  }catch(e){
-    console.error(e);
-    uiMsg.textContent = 'Erreur RFID: ' + e.message;
-    uiMsg.className = 'error';
   }
 });
 
