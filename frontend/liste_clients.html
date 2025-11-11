@@ -27,15 +27,55 @@
     <h2 style="margin-top:0">Clients</h2>
     <p class="tip">
       Format : <i>index) prénom nom email téléphone code [RFID]</i>.<br/>
+      Cliquez sur <b>Compte</b> pour voir le solde + l’historique et ajuster le cumul / cadeaux.<br/>
       Cliquez sur <b>RFID</b> pour associer une carte, et sur 🗑️ pour supprimer un client.
     </p>
     <div id="list" class="kv"></div>
     <p id="msg" class="muted"></p>
   </section>
+
+  <!-- ===== NOUVEAU : panneau "Compte client" ===== -->
+  <section class="card hidden" id="accountPanel">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h2 style="margin:0">Compte client</h2>
+      <button id="accountClose" class="btn outline" type="button">Fermer</button>
+    </div>
+
+    <div id="accountInfo" class="kv">
+      <p><b id="accName">—</b></p>
+      <p class="muted">Code : <b id="accCode">—</b></p>
+    </div>
+
+    <hr class="muted"/>
+
+    <h3>Ajuster cumul / cadeaux</h3>
+    <form id="accountForm" class="grid">
+      <div>
+        <label for="accBalance">Cumul (en €)</label>
+        <input id="accBalance" type="number" step="0.01" min="0" />
+      </div>
+      <div>
+        <label for="accGifts">Cadeaux (compteur)</label>
+        <input id="accGifts" type="number" min="0" />
+      </div>
+      <div style="grid-column:1/-1" class="row">
+        <input id="accReason" type="text" placeholder="Motif de l'ajustement (ex: cadeau remis / correction saisie)" style="flex:1"/>
+        <button id="accSave" class="btn" type="submit">Enregistrer l’ajustement</button>
+      </div>
+      <p id="accMsg" class="muted"></p>
+    </form>
+
+    <hr class="muted"/>
+
+    <h3>Dernières opérations</h3>
+    <div id="accTxList" class="kv"></div>
+  </section>
 </main>
 
 <script>
 const API = 'https://tontonmoh-api.azizekarma.workers.dev';
+const ADMIN_KEY_LS = 'aziz';      // même clé locale que dans caisse.html
+const CASHIER_ID   = 'cash_admin';
 
 // --------- Utilitaires
 function telNice(s){
@@ -55,12 +95,9 @@ function el(tag, attrs={}, children=[]){
   });
   return e;
 }
-
 function normalizePhone(s){
-  return String(s||'').replace(/[^\d+]/g,''); // garde + et chiffres
+  return String(s||'').replace(/[^\d+]/g,'');
 }
-
-// On concatène tous les champs utiles en minuscule pour la recherche
 function buildHaystack(c){
   const phone = c.phone_e164 || '';
   return [
@@ -68,33 +105,30 @@ function buildHaystack(c){
     c.last_name    || '',
     c.email        || '',
     phone,
-    normalizePhone(phone),     // version chiffres-seuls du téléphone
+    normalizePhone(phone),
     c.code_public  || '',
     c.rfid_uid     || '',
     c.rfid_token   || ''
   ].join(' ').toLowerCase();
 }
-
 function filterClients(query, rows){
   const q = String(query || '').trim().toLowerCase();
   if(!q) return rows;
 
-  const tokens = q.split(/\s+/).filter(Boolean);       // supporte 1 mot ou plusieurs
-  const phoneQ = normalizePhone(q);                    // si on tape un numéro avec espaces
-  const usePhone = phoneQ.length >= 3;                 // petit seuil
+  const tokens  = q.split(/\s+/).filter(Boolean);
+  const phoneQ  = normalizePhone(q);
+  const usePhone = phoneQ.length >= 3;
 
   return rows.filter(c => {
     const h = buildHaystack(c);
-    // chaque mot doit matcher quelque part
-    const textOk = tokens.every(t => h.includes(t));
-    // si le query ressemble à un téléphone, on autorise aussi le match sur chiffres-seuls
+    const textOk  = tokens.every(t => h.includes(t));
     const phoneOk = usePhone ? normalizePhone(c.phone_e164).includes(phoneQ) : true;
     return textOk && phoneOk;
   });
 }
+function euros(cents){ return (Number(cents||0)/100).toFixed(2) + ' €'; }
 
-// --------- API
-// On rapatrie toute la liste (paginée) puis on filtrera en local
+// --------- API "liste"
 async function fetchAllClients(){
   const limit = 200;
   let offset = 0;
@@ -112,21 +146,53 @@ async function fetchAllClients(){
   }
   return all;
 }
-
 async function deleteClient(id){
   const r = await fetch(`${API}/api/clients/${encodeURIComponent(id)}`, { method:'DELETE' });
   if(!r.ok) throw new Error('Suppression refusée');
   return true;
 }
 
-// Associer une carte RFID à un client
-async function assignRfidToClient(client){
-  // 1) Demander l’UID (on pourra plus tard le recevoir automatiquement de l’ESP32)
-  let uid = prompt(`UID de la carte RFID pour "${client.first_name || ''} ${client.last_name || ''}" ?\n(ex: 69 88 DB B2 ou 6988DBB2)`);
-  if(!uid) return; // annulé
-  uid = uid.replace(/\s+/g,'').toUpperCase(); // supprime espaces, met en MAJ
+// --------- API "compte client" (comme dans caisse.html)
+async function fetchClientFull(clientId){
+  const r = await fetch(`${API}/api/clients/${encodeURIComponent(clientId)}/full`);
+  if(!r.ok) throw new Error('Impossible de charger le compte client');
+  return await r.json();
+}
+async function adminAdjustBalance(clientId, newBalanceCents, newGiftsCount, reason){
+  let adminKey = localStorage.getItem(ADMIN_KEY_LS) || '';
+  if(!adminKey){
+    adminKey = prompt('Clé Admin ?');
+    if(!adminKey) throw new Error('Clé admin manquante');
+    localStorage.setItem(ADMIN_KEY_LS, adminKey);
+  }
 
-  // Optionnel : possibilité de taper un token personnalisé, sinon on laisse vide
+  const r = await fetch(`${API}/api/admin/balances/adjust`, {
+    method: 'POST',
+    headers: {
+      'Content-Type':'application/json',
+      'X-Admin-Key': adminKey
+    },
+    body: JSON.stringify({
+      client_id: clientId,
+      set_balance_cents: newBalanceCents,
+      set_gifts_count: newGiftsCount,
+      reason: reason || '',
+      cashier_id: CASHIER_ID
+    })
+  });
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok || !j.ok){
+    throw new Error(j.error ? `Erreur admin: ${j.error}` : 'Ajustement refusé');
+  }
+  return j;   // { ok, balance_cents, gifts_count }
+}
+
+// --------- Associer une carte RFID à un client
+async function assignRfidToClient(client){
+  let uid = prompt(`UID de la carte RFID pour "${client.first_name || ''} ${client.last_name || ''}" ?\n(ex: 69 88 DB B2 ou 6988DBB2)`);
+  if(!uid) return;
+  uid = uid.replace(/\s+/g,'').toUpperCase();
+
   let token = prompt('Code à écrire dans les blocs (laisser vide pour générer automatiquement tontonmoh1, 2, ...) :') || '';
   token = token.trim();
 
@@ -140,7 +206,7 @@ async function assignRfidToClient(client){
       body: JSON.stringify({
         client_id: client.id,
         rfid_uid: uid,
-        rfid_token: token || undefined  // si vide, le Worker génère tontonmohX
+        rfid_token: token || undefined
       })
     });
 
@@ -152,7 +218,6 @@ async function assignRfidToClient(client){
     msg.textContent = `Carte RFID associée ✔️ (token: ${data.rfid_token})`;
     msg.className = 'success';
 
-    // On recharge la liste pour voir les nouvelles valeurs
     await load(qInput.value);
   }catch(e){
     console.error(e);
@@ -161,7 +226,7 @@ async function assignRfidToClient(client){
   }
 }
 
-// --------- UI
+// --------- UI liste
 const listBox    = document.getElementById('list');
 const msg        = document.getElementById('msg');
 const countLine  = document.getElementById('countLine');
@@ -197,6 +262,11 @@ function renderList(data){
       el('div', { class:'row', style:'gap:.4rem' }, [
         el('button', {
           class:'btn outline',
+          'data-role':'account',
+          title:'Voir le compte (solde, cadeaux, historique)'
+        }, 'Compte'),
+        el('button', {
+          class:'btn outline',
           'data-role':'rfid',
           title:'Associer/mettre à jour une carte RFID pour ce client',
           style:'--btn-bg:transparent;'
@@ -210,13 +280,13 @@ function renderList(data){
       ])
     ]);
 
-    const rfidBtn = line.querySelector('button[data-role="rfid"]');
-    const delBtn  = line.querySelector('button[data-role="delete"]');
+    const accountBtn = line.querySelector('button[data-role="account"]');
+    const rfidBtn    = line.querySelector('button[data-role="rfid"]');
+    const delBtn     = line.querySelector('button[data-role="delete"]');
 
-    // clic RFID
-    rfidBtn.addEventListener('click', () => assignRfidToClient(c));
+    accountBtn.addEventListener('click', () => openAccount(c));
+    rfidBtn   .addEventListener('click', () => assignRfidToClient(c));
 
-    // clic suppression
     delBtn.addEventListener('click', async ()=>{
       const name = `${c.first_name||''} ${c.last_name||''}`.trim() || 'Ce client';
       const ok = confirm(`Supprimer le compte "${name}" ?\n\nCette action supprime aussi son solde et ses transactions (ON DELETE CASCADE).`);
@@ -244,10 +314,9 @@ async function load(query=''){
   try{
     msg.textContent = 'Chargement…'; msg.className='muted';
 
-    const all  = await fetchAllClients();        // on charge tout
-    const data = filterClients(query, all);      // on filtre en local
+    const all  = await fetchAllClients();
+    const data = filterClients(query, all);
 
-    // tri simple par nom puis prénom
     data.sort((a,b)=>
       (a.last_name  ||'').localeCompare(b.last_name  ||'', 'fr', {sensitivity:'base'}) ||
       (a.first_name ||'').localeCompare(b.first_name ||'', 'fr', {sensitivity:'base'})
@@ -264,7 +333,76 @@ async function load(query=''){
   }
 }
 
-// --------- Events
+// --------- UI "Compte client"
+const accountPanel  = document.getElementById('accountPanel');
+const accountClose  = document.getElementById('accountClose');
+const accName       = document.getElementById('accName');
+const accCode       = document.getElementById('accCode');
+const accBalance    = document.getElementById('accBalance');
+const accGifts      = document.getElementById('accGifts');
+const accReason     = document.getElementById('accReason');
+const accMsg        = document.getElementById('accMsg');
+const accTxList     = document.getElementById('accTxList');
+const accountForm   = document.getElementById('accountForm');
+
+let currentAccountClient = null;
+
+async function openAccount(client){
+  try{
+    currentAccountClient = client;
+    accMsg.textContent = 'Chargement…';
+    accountPanel.classList.remove('hidden');
+
+    const full = await fetchClientFull(client.id);
+
+    const name = `${full.client.first_name||''} ${full.client.last_name||''}`.trim();
+    accName.textContent = name || 'Client';
+    accCode.textContent = full.client.code_public || '';
+
+    const balCents = Number(full.balance?.euro_cents_accumulated || 0);
+    const gifts    = Number(full.balance?.gifts_count || 0);
+    accBalance.value = (balCents/100).toFixed(2);
+    accGifts.value   = gifts;
+
+    accTxList.innerHTML = (full.transactions||[]).map(t=>{
+      const dt  = (t.created_at||'').replace('T',' ').replace('Z','');
+      const amt = euros(t.amount_cents);
+      return `<p class="muted"><b>${dt}</b> — ${t.status} — ${amt} — <i>${t.note||''}</i></p>`;
+    }).join('') || '<p class="muted">Aucune opération récente.</p>';
+
+    accMsg.textContent = '';
+  }catch(e){
+    console.error(e);
+    accMsg.textContent = 'Erreur: ' + e.message;
+  }
+}
+
+accountClose.addEventListener('click', ()=>{
+  accountPanel.classList.add('hidden');
+});
+
+accountForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  try{
+    if(!currentAccountClient) return;
+    accMsg.textContent = 'Enregistrement…';
+
+    const eurosStr = String(accBalance.value || '0').replace(',','.');
+    const cents    = Math.max(0, Math.round(parseFloat(eurosStr||'0')*100));
+    const gifts    = Math.max(0, parseInt(accGifts.value||'0', 10));
+    const reason   = accReason.value || '';
+
+    const res = await adminAdjustBalance(currentAccountClient.id, cents, gifts, reason);
+    accMsg.textContent   = 'Ajustement enregistré ✔️';
+    accBalance.value     = (res.balance_cents/100).toFixed(2);
+    accGifts.value       = res.gifts_count;
+  }catch(err){
+    console.error(err);
+    accMsg.textContent = 'Erreur: ' + err.message;
+  }
+});
+
+// --------- Events liste
 searchBtn .addEventListener('click', ()=> load(qInput.value));
 resetBtn  .addEventListener('click', ()=> { qInput.value=''; load(''); });
 refreshBtn.addEventListener('click', ()=> load(qInput.value));
