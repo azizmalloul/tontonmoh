@@ -23,8 +23,9 @@
     </div>
   </section>
 
-  <section class="card">
+  <section class="card" id="clientsSection">
     <h2 style="margin-top:0">Clients</h2>
+
     <p class="tip">
       Format : <i>index) prénom nom email téléphone code [RFID]</i>.<br/>
       Cliquez sur <b>Compte</b> pour voir le solde + l’historique et ajuster le cumul / cadeaux.<br/>
@@ -195,6 +196,7 @@ const qInput     = document.getElementById('q');
 const searchBtn  = document.getElementById('searchBtn');
 const resetBtn   = document.getElementById('resetBtn');
 const refreshBtn = document.getElementById('refreshBtn');
+const clientsSection = document.getElementById('clientsSection');
 
 let currentData = [];
 
@@ -300,10 +302,12 @@ const accountForm   = document.getElementById('accountForm');
 
 let currentAccountClient = null;
 
+
 async function openAccount(client){
   try{
     currentAccountClient = client;
     accMsg.textContent = 'Chargement…';
+    clientsSection.classList.add('hidden');
     accountPanel.classList.remove('hidden');
 
     const full = await fetchClientFull(client.id);
@@ -332,7 +336,9 @@ async function openAccount(client){
 
 accountClose.addEventListener('click', ()=>{
   accountPanel.classList.add('hidden');
+  clientsSection.classList.remove('hidden');
 });
+
 
 accountForm.addEventListener('submit', async (e)=>{
   e.preventDefault();
