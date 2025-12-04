@@ -53,8 +53,25 @@
     const API = 'https://tontonmoh-api.azizekarma.workers.dev';
 
     function normalizePhone(str){
-      return (str || '').replace(/[^0-9+]/g,'');
+      // On garde seulement les chiffres
+      let p = (str || '').replace(/[^0-9]/g, '');
+      if (!p) return '';
+    
+      // Cas 1 : numéro saisi en 0X XX XX XX XX → on le convertit en 33XXXXXXXXX
+      if (p.length === 10 && p.startsWith('0')) {
+        p = '33' + p.slice(1);      // 0765617249 -> 33765617249
+      }
+    
+      // Cas 2 : numéro déjà en 33XXXXXXXXX (11 chiffres) → on laisse tel quel
+      // Cas 3 : quelques bizarreries possibles type 3307... → on corrige vite fait
+      if (p.length === 12 && p.startsWith('330')) {
+        // 330765617249 -> 33 + 765617249
+        p = '33' + p.slice(3);
+      }
+    
+      return p;
     }
+    
     function normalizeName(str){
       return (str || '').trim().toLowerCase();
     }
