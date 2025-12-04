@@ -22,6 +22,7 @@
       <div class="row">
         <button id="startBtn" class="btn" type="submit">Démarrer le scan</button>
         <button id="switchBtn" class="btn outline" type="button" title="Caméra avant/arrière">Basculer caméra</button>
+        <button id="clientsBtn" class="btn outline" type="button">Liste des clients</button>
       </div>
       <p class="tip">Entrez le montant puis scannez le QR du client. Le passage caisse sera enregistré automatiquement.</p>
       <p id="uiMsg" class="muted"></p>
@@ -141,6 +142,8 @@ const clientCode    = document.getElementById('clientCode');
 const clientBalance = document.getElementById('clientBalance');
 const clientGifts   = document.getElementById('clientGifts');
 const formMsg       = document.getElementById('formMsg');
+const clientsBtn   = document.getElementById('clientsBtn');
+
 
 /* ====== ÉTAT ====== */
 const reader = new ZXingBrowser.BrowserQRCodeReader();
@@ -425,6 +428,10 @@ switchBtn.addEventListener('click', async ()=>{
 });
 
 backBtn.addEventListener('click', ()=> stopScanner(true));
+
+clientsBtn.addEventListener('click', () => {
+  window.location.href = './liste_clients.html';
+});
 
 manualBtn.addEventListener('click', async ()=>{
   const code = (codeInput.value||'').trim().toUpperCase();
