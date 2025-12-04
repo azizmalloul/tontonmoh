@@ -12,19 +12,27 @@
     <h1>Votre carte fidélité est prête 🎉</h1>
   </header>
   <main class="container card center">
-    <p class="banner">Enregistrez l'image du QR. Vous la recevrez aussi par e-mail.</p>
+    <p class="banner">
+      Enregistrez l'image du QR <strong>et notez bien votre code à 6 caractères</strong>.
+      Ils vous serviront pour vous connecter à votre compte.
+    </p>
     <div class="qr-wrapper">
       <img id="qrImg" alt="QR fidélité" style="display:none" />
       <div id="qrBox"></div>
     </div>
     <p id="codeText" class="muted"></p>
     <h2>Comment ça marche ?</h2>
+    <h2>Comment ça marche ?</h2>
     <ol class="container" style="text-align:left">
       <li>À chaque achat, le vendeur saisit le montant et scanne votre QR.</li>
       <li>Votre cumul progresse vers <b>80 €</b>. Chaque palier atteint = <b>1 cadeau</b>.</li>
-      <li>“Mon compte” permet de voir le cumul et l’historique.</li>
+      <li>Avec votre <b>code à 6 caractères</b>, vous pouvez vous connecter pour voir votre cumul et l’historique.</li>
     </ol>
-    <p><a id="accountLink" class="btn" href="#">Accéder à mon compte</a></p>
+
+    <div class="row" style="justify-content:center; gap:1rem; flex-wrap:wrap; margin-top:1rem;">
+      <a id="accountLink" class="btn" href="#">Accéder à mon compte</a>
+      <!-- le bouton "Télécharger le QR" sera ajouté en JS quand l'image est prête -->
+    </div>
   </main>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
