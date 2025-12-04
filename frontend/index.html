@@ -3,52 +3,31 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>TontonMoh — Inscription fidélité</title>
+  <title>Carte fidélité — Chez Tonton Moh</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <header class="container">
+  <header class="container center">
     <img src="./assets/logo.png" alt="Chez Tonton Moh" class="logo" />
     <h1>Carte fidélité — Chez Tonton Moh</h1>
     <p>🎁 Cumulez vos achats : <strong>80 € = 1 cadeau</strong>. Montrez votre QR en caisse.</p>
   </header>
 
-  <main class="container card">
-    <h2>Inscription rapide</h2>
-    <form id="signupForm" autocomplete="on" novalidate>
-      <div class="grid">
-        <label>Prénom*
-          <input required type="text" name="first_name" placeholder="Ex: Aziz" />
-        </label>
-        <label>Nom
-          <input type="text" name="last_name" placeholder="Malloul" />
-        </label>
-      </div>
+  <main class="container card center">
+    <h2>Bienvenue</h2>
+    <p class="muted" style="max-width:480px;margin:0 auto 1.5rem;">
+      Créez votre carte fidélité pour recevoir un QR code unique, puis connectez-vous
+      avec votre code à 6 caractères pour consulter votre cumul et vos cadeaux.
+    </p>
 
-      <div class="grid">
-        <label>Téléphone (FR)*
-          <input required type="tel" name="phone" inputmode="tel" placeholder="06 12 34 56 78" />
-          <small>Servira à sécuriser votre accès.</small>
-        </label>
-        <label>Email*
-          <input required type="email" name="email" placeholder="vous@exemple.fr" />
-        </label>
-      </div>
-
-      <label class="checkbox">
-        <input type="checkbox" name="opt_in" checked />
-        J’accepte de recevoir mon QR et le suivi fidélité (STOP pour se désinscrire).
-      </label>
-
-      <button type="submit" class="btn">Créer ma carte & recevoir mon QR</button>
-      <p id="formMsg" class="muted"></p>
-    </form>
+    <div class="row" style="justify-content:center; gap:1rem; flex-wrap:wrap;">
+      <a href="./inscription.html" class="btn">Créer un compte</a>
+      <a href="./connexion.html" class="btn outline">Se connecter</a>
+    </div>
   </main>
 
   <footer class="container muted">
     <p>© 2025 Chez Tonton Moh — Fruits & Légumes, Villeurbanne</p>
   </footer>
-
-  <script src="./inscription.js"></script>
 </body>
 </html>
