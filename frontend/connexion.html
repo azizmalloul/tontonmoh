@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Se connecter — Carte fidélité</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="container center">
+    <img src="./assets/logo.png" alt="Chez Tonton Moh" class="logo" />
+    <h1>Se connecter à mon compte</h1>
+    <p class="muted">
+      Utilisez les mêmes informations que lors de l’inscription
+      + votre code à 6 caractères.
+    </p>
+  </header>
+
+  <main class="container card">
+    <form id="loginForm" class="kv">
+      <div class="grid">
+        <label>Prénom*
+          <input required type="text" name="first_name" placeholder="Ex: Aziz" />
+        </label>
+        <label>Nom*
+          <input required type="text" name="last_name" placeholder="Malloul" />
+        </label>
+      </div>
+
+      <div class="grid">
+        <label>Téléphone (FR)*
+          <input required type="tel" name="phone" inputmode="tel" placeholder="06 12 34 56 78" />
+        </label>
+        <label>Code à 6 caractères*
+          <input required type="text" name="code" maxlength="6" minlength="4" placeholder="Ex: ZTQQK0" />
+        </label>
+      </div>
+
+      <button type="submit" class="btn">Accéder à mon compte</button>
+      <p id="formMsg" class="muted"></p>
+    </form>
+
+    <p class="muted" style="margin-top:1rem;">
+      Pas encore de carte ? <a href="./inscription.html">Créer un compte</a>
+    </p>
+  </main>
+
+  <footer class="container muted">
+    <p>© 2025 Chez Tonton Moh — Fruits & Légumes, Villeurbanne</p>
+  </footer>
+
+  <script>
+    const API = 'https://tontonmoh-api.azizekarma.workers.dev';
+
+    function normalizePhone(str){
+      return (str || '').replace(/[^0-9+]/g,'');
+    }
+    function normalizeName(str){
+      return (str || '').trim().toLowerCase();
+    }
+
+    async function fetchClientByCode(code){
+      const r = await fetch(`${API}/api/clients/by-code/${encodeURIComponent(code)}`);
+      if (!r.ok) throw new Error('Code introuvable');
+      return await r.json();
+    }
+
+    const form = document.getElementById('loginForm');
+    const msg  = document.getElementById('formMsg');
+
+    form.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      msg.textContent = '';
+      msg.className   = 'muted';
+
+      const data = new FormData(form);
+      const first = normalizeName(data.get('first_name'));
+      const last  = normalizeName(data.get('last_name'));
+      const phone = normalizePhone(data.get('phone'));
+      const code  = String(data.get('code') || '').trim().toUpperCase();
+
+      if (!first || !last || !phone || !code){
+        msg.textContent = 'Merci de remplir tous les champs.';
+        msg.className = 'error';
+        return;
+      }
+
+      try{
+        msg.textContent = 'Vérification des informations…';
+
+        const cli = await fetchClientByCode(code);
+
+        const cFirst = normalizeName(cli.first_name);
+        const cLast  = normalizeName(cli.last_name);
+        const cPhone = normalizePhone(cli.phone_e164 || cli.phone || '');
+
+        if (first !== cFirst || last !== cLast || (cPhone && phone !== cPhone)){
+          msg.textContent = 'Les informations ne correspondent pas au compte.';
+          msg.className = 'error';
+          return;
+        }
+
+        // OK -> redirection vers mon-compte.html?code=XXXXXX
+        const url = new URL('./mon-compte.html', location.origin);
+        url.searchParams.set('code', code);
+        location.href = url.toString();
+      }catch(err){
+        console.error(err);
+        msg.textContent = 'Erreur : ' + (err.message || err);
+        msg.className = 'error';
+      }
+    });
+  </script>
+</body>
+</html>
