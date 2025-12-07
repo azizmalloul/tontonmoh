@@ -118,7 +118,13 @@
           width: 300,
           height: 300,
           type: "png",
+        
           data: codePublic,
+        
+          qrOptions: {
+            errorCorrectionLevel: "H"
+          },
+        
           image: "./assets/logo.png",
         
           dotsOptions: {
@@ -126,7 +132,7 @@
             type: "square"
           },
           cornersSquareOptions: {
-            type: "rounded"
+            type: "square"
           },
           cornersDotOptions: {
             type: "square"
@@ -136,9 +142,11 @@
           },
           imageOptions: {
             crossOrigin: "anonymous",
-            margin: 4
+            margin: 12,
+            imageSize: 0.22
           }
         });
+
 
         
         // Afficher le QR dans la div #qrBox
