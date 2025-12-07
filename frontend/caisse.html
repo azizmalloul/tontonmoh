@@ -318,24 +318,7 @@ async function startScanner(){
       if (err && !(err instanceof ZXingBrowser.NotFoundException)) return;
       if (!result) return;
     
-      // --- NOUVEAU : on récupère le texte brut du QR ---
-      const rawText = (result.getText() || '').trim();
-      let code = rawText.toUpperCase();
-    
-      // Si ce n’est PAS exactement 6 caractères alphanumériques,
-      // on essaie d'extraire un motif de 6 caractères dedans (ex: ...code=ORL2UV)
-      if (!/^[A-Z0-9]{6}$/.test(code)) {
-        const m = code.match(/([A-Z0-9]{6})/);
-        if (m) {
-          code = m[1];
-        } else {
-          // Rien d'exploitable dans le QR
-          formMsg.textContent = 'QR invalide (code à 6 caractères introuvable).';
-          formMsg.className = 'error';
-          console.warn('QR scanné mais sans code valide :', rawText);
-          return;
-        }
-      }
+      const code = result.getText().trim().toUpperCase();
     
       const now  = Date.now();
       ...
