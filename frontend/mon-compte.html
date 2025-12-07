@@ -109,42 +109,50 @@
           </p>
         `;
 
-        // 4) QR "pro" avec logo au centre (style classique, lisible)
+        // 4) QR "pro" mais lisible : carrés + petit logo
         const box        = document.getElementById('qrBox');
         const dl         = document.getElementById('dlQR');
         const codePublic = cli.code_public;
 
         const qr = new QRCodeStyling({
-          width: 420,
-          height: 420,
-          type: "svg",
+          width: 320,
+          height: 320,
+          type: "png",
           data: codePublic,
           qrOptions: {
-            errorCorrectionLevel: "H",
-            margin: 8
+            errorCorrectionLevel: "Q"
           },
-          image: "./assets/logo.png",
           dotsOptions: {
             color: "#000000",
             type: "square"
           },
           cornersSquareOptions: {
-            type: "square",
-            color: "#000000"
+            type: "square"
           },
           cornersDotOptions: {
-            type: "square",
-            color: "#000000"
+            type: "square"
           },
           backgroundOptions: {
             color: "#ffffff"
           },
+          image: "./assets/logo.png",
           imageOptions: {
             crossOrigin: "anonymous",
-            margin: 10,
-            imageSize: 0.28
+            margin: 12,
+            imageSize: 0.25
           }
         });
+
+        qr.append(box);
+
+        qr.getRawData("png").then(blob => {
+          const url = URL.createObjectURL(blob);
+          dl.href = url;
+          dl.style.display = "inline-block";
+        }).catch(e => {
+          console.error(e);
+        });
+
 
         // Afficher le QR
         qr.append(box);
