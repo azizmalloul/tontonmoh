@@ -55,44 +55,52 @@
       const account = new URL('/mon-compte.html', location.origin);
       account.searchParams.set('code', code);
       accountLink.href = account.toString();
-  
-      // 1) on ESSAIE d'afficher un PNG statique s'il existe
-      img.src = '/static/qrcodes/' + encodeURIComponent(code) + '.png';
-      img.onload = () => { img.style.display = 'block'; };
-      img.onerror = () => {
-        // 2) s'il n'existe pas -> on GENÈRE le QR localement
-        img.remove(); // on cache/supprime l'<img> cassé
-        try {
-          // Le contenu du QR : ici on met seulement le code public
-          // (si tu préfères un lien vers le compte, remplace "text: code" par
-          //  `text: account.toString()`).
-          const q = new QRCode(box, {
-            text: code,
-            width: 256,
-            height: 256,
-            correctLevel: QRCode.CorrectLevel.M,
-          });
-  
-          // petit délai le temps que qrcodejs rende une <img>
-          setTimeout(() => {
-            const genImg = box.querySelector('img'); // qrcodejs rend une <img>
-            if (genImg) {
-              // bouton "Télécharger le QR"
-              const a = document.createElement('a');
-              a.className = 'btn';
-              a.textContent = 'Télécharger le QR';
-              a.download = code + '.png';
-              a.href = genImg.src;
-              // on l’ajoute en bas de la carte
-              main.appendChild(a);
-            }
-          }, 50);
-        } catch(e) {
-          box.innerHTML = '<p class="error">Impossible de générer le QR.</p>';
-          console.error(e);
+    
+      // QR "pro" avec logo au centre (qr-code-styling)
+      const qr = new QRCodeStyling({
+        width: 320,
+        height: 320,
+        type: "png",
+        // Contenu du QR : le code 6 caractères
+        // (si tu veux encoder le lien, mets: data: account.toString())
+        data: code,
+        image: "./assets/logo.png",   // logo TontonMoh au centre
+        dotsOptions: {
+          color: "#000000",
+          type: "rounded"
+        },
+        cornersSquareOptions: {
+          type: "extra-rounded"
+        },
+        cornersDotOptions: {
+          type: "dot"
+        },
+        backgroundOptions: {
+          color: "#ffffff"
+        },
+        imageOptions: {
+          crossOrigin: "anonymous",
+          margin: 8
         }
-      };
+      });
+    
+      // Affichage du QR dans la div #qrBox
+      qr.append(box);
+    
+      // Création du bouton "Télécharger le QR"
+      qr.getRawData("png").then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a   = document.createElement('a');
+        a.className = 'btn';
+        a.textContent = 'Télécharger le QR';
+        a.download = code + '.png';
+        a.href = url;
+        main.appendChild(a);
+      }).catch(e => {
+        console.error(e);
+      });
     }
+
   </script>
 
 </body>
