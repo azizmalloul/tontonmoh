@@ -56,33 +56,42 @@
       account.searchParams.set('code', code);
       accountLink.href = account.toString();
     
-      // QR "pro" avec logo au centre (qr-code-styling)
+      // QR "pro" style carré + logo au centre
       const qr = new QRCodeStyling({
         width: 320,
         height: 320,
         type: "png",
-        // Contenu du QR : le code 6 caractères
-        // (si tu veux encoder le lien, mets: data: account.toString())
+        // Contenu du QR : le code à 6 caractères
         data: code,
-        image: "./assets/logo.png",   // logo TontonMoh au centre
+        image: "./assets/logo.png",
+      
+        // points carrés classiques
         dotsOptions: {
           color: "#000000",
+          type: "square"
+        },
+      
+        // gros carrés d'angle avec bords arrondis
+        cornersSquareOptions: {
           type: "rounded"
         },
-        cornersSquareOptions: {
-          type: "extra-rounded"
-        },
+        // petits points au centre des carrés d'angle
         cornersDotOptions: {
-          type: "dot"
+          type: "square"
         },
+      
+        // fond bien blanc (comme une carte)
         backgroundOptions: {
           color: "#ffffff"
         },
+      
+        // logo plus gros, avec petite marge
         imageOptions: {
           crossOrigin: "anonymous",
-          margin: 8
+          margin: 4
         }
       });
+
     
       // Affichage du QR dans la div #qrBox
       qr.append(box);
