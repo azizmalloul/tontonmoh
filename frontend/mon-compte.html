@@ -109,7 +109,7 @@
           </p>
         `;
 
-        // 4) QR "pro" avec logo au centre (qr-code-styling)
+        // 4) QR "pro" style carré + logo au centre
         const box        = document.getElementById('qrBox');
         const dl         = document.getElementById('dlQR');
         const codePublic = cli.code_public;
@@ -120,24 +120,26 @@
           type: "png",
           data: codePublic,
           image: "./assets/logo.png",
+        
           dotsOptions: {
             color: "#000000",
-            type: "rounded"
+            type: "square"
           },
           cornersSquareOptions: {
-            type: "extra-rounded"
+            type: "rounded"
           },
           cornersDotOptions: {
-            type: "dot"
+            type: "square"
           },
           backgroundOptions: {
             color: "#ffffff"
           },
           imageOptions: {
             crossOrigin: "anonymous",
-            margin: 8
+            margin: 4
           }
         });
+
         
         // Afficher le QR dans la div #qrBox
         qr.append(box);
