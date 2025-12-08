@@ -58,33 +58,44 @@
     
       // QR "pro" mais très lisible : carrés + petit logo
       const qr = new QRCodeStyling({
-        width: 320,
-        height: 320,
-        type: "png",
-        data: code,  // on encode juste le code à 6 caractères
+        width: 360,
+        height: 360,
+        type: "canvas",           // rendu sur canvas (très net sur écran)
+
+        // on encode juste le code à 6 caractères
+        data: code,
+
+        // grosse marge blanche + correction max
         qrOptions: {
-          errorCorrectionLevel: "Q"   // forte correction d’erreur
+          errorCorrectionLevel: "H",
+          margin: 16
         },
+
+        // modules carrés classiques
         dotsOptions: {
           color: "#000000",
-          type: "square"              // modules carrés classiques
+          type: "square"
         },
         cornersSquareOptions: {
-          type: "square"              // coins carrés
+          type: "square"
         },
         cornersDotOptions: {
           type: "square"
         },
+
         backgroundOptions: {
           color: "#ffffff"
         },
-        image: "./assets/logo.png",   // logo TontonMoh au centre
+
+        // logo au centre
+        image: "./assets/logo.png",
         imageOptions: {
           crossOrigin: "anonymous",
-          margin: 12,                 // plus de “blanc” autour du logo
-          imageSize: 0.25             // logo ≈ 25% du QR
+          margin: 14,
+          imageSize: 0.2          // ≈ 20% du QR
         }
       });
+
 
 
       // Affichage du QR dans la div #qrBox
