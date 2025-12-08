@@ -317,12 +317,9 @@ async function startScanner(){
     await reader.decodeFromConstraints(constraints, video, async (result, err)=>{
       if (err && !(err instanceof ZXingBrowser.NotFoundException)) return;
       if (!result) return;
-    
-      const code = result.getText().trim().toUpperCase();
-    
-      const now  = Date.now();
-      ...
 
+      const code = result.getText().trim().toUpperCase();
+      const now  = Date.now();
 
       const last = lastScan.get(code)||0;
       if (now - last < COOLDOWN_MS) return;
