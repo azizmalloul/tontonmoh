@@ -115,12 +115,14 @@
         const codePublic = cli.code_public;
 
         const qr = new QRCodeStyling({
-          width: 320,
-          height: 320,
-          type: "png",
+          width: 360,
+          height: 360,
+          type: "canvas",
           data: codePublic,
+
           qrOptions: {
-            errorCorrectionLevel: "Q"
+            errorCorrectionLevel: "H",
+            margin: 16
           },
           dotsOptions: {
             color: "#000000",
@@ -138,23 +140,12 @@
           image: "./assets/logo.png",
           imageOptions: {
             crossOrigin: "anonymous",
-            margin: 12,
-            imageSize: 0.25
+            margin: 14,
+            imageSize: 0.2
           }
         });
 
-        qr.append(box);
-
-        qr.getRawData("png").then(blob => {
-          const url = URL.createObjectURL(blob);
-          dl.href = url;
-          dl.style.display = "inline-block";
-        }).catch(e => {
-          console.error(e);
-        });
-
-
-        // Afficher le QR
+        // Afficher le QR dans la carte
         qr.append(box);
 
         // Préparer le bouton "Télécharger le QR"
@@ -165,6 +156,7 @@
         }).catch(e => {
           console.error(e);
         });
+
 
 
 
