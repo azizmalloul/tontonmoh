@@ -182,7 +182,7 @@
           imgObj.onerror = () => reject(new Error('Image QR brute introuvable'));
 
           imgObj.src = qrImg.src || (qrImg.toDataURL && qrImg.toDataURL());
-        }, 60);
+        }, 400);
       });
     }
 
