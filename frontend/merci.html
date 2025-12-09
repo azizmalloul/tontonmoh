@@ -107,9 +107,9 @@
           ctx.fillRect(0, 0, CARD_W, CARD_H);
 
           // Bloc blanc en haut (pour le QR seulement)
-          const marginX = 50;
-          const marginY = 60;
-          const whiteHeight = 1100; // laisse une grosse bande noire en bas
+          const marginX = 70;
+          const marginY = 75;
+          const whiteHeight = 1100; // permet d'agrendir ou diminuer la taille de qr a linterieur de carré blanc
 
           ctx.fillStyle = '#ffffff';
           roundedRect(ctx, marginX, marginY, CARD_W - 2 * marginX, whiteHeight, 72);
