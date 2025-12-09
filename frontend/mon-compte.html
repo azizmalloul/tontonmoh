@@ -21,9 +21,7 @@
   </main>
 
   <!-- qrcodejs pour générer le QR si l'image statique n'existe pas -->
-  
-  <script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.5.0/lib/qr-code-styling.js"></script>
-
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script>
     const API = 'https://tontonmoh-api.azizekarma.workers.dev';
 
@@ -109,58 +107,42 @@
           </p>
         `;
 
-        // 4) QR "pro" style carré + logo au centre
-        const box        = document.getElementById('qrBox');
-        const dl         = document.getElementById('dlQR');
+        // 4) QR : essayer d'abord l'image statique /static/qrcodes/CODE.png
+        const img = document.getElementById('qrImg');
+        const box = document.getElementById('qrBox');
+        const dl  = document.getElementById('dlQR');
         const codePublic = cli.code_public;
-        
-        const qr = new QRCodeStyling({
-          width: 300,
-          height: 300,
-          type: "png",
-        
-          data: codePublic,
-        
-          qrOptions: {
-            errorCorrectionLevel: "H"
-          },
-        
-          //image: "./assets/logo.png",
-        
-          dotsOptions: {
-            color: "#000000",
-            type: "square"
-          },
-          cornersSquareOptions: {
-            type: "square"
-          },
-          cornersDotOptions: {
-            type: "square"
-          },
-          backgroundOptions: {
-            color: "#ffffff"
-          },
-          imageOptions: {
-            crossOrigin: "anonymous",
-            margin: 12,
-            imageSize: 0.22
+
+        img.src = `/static/qrcodes/${encodeURIComponent(codePublic)}.png`;
+        img.onload = () => {
+          img.style.display = 'block';
+          box.innerHTML = '';
+          dl.href = img.src;
+          dl.style.display = 'inline-block';
+        };
+        img.onerror = () => {
+          // Générer localement
+          box.innerHTML = '';
+          try{
+            const q = new QRCode(box, {
+              text: codePublic,
+              width: 256,
+              height: 256,
+              correctLevel: QRCode.CorrectLevel.M,
+            });
+            // Récupérer l'<img> générée pour proposer le téléchargement
+            setTimeout(()=>{
+              const genImg = box.querySelector('img');
+              if (genImg){
+                dl.href = genImg.src;
+                dl.style.display = 'inline-block';
+              }
+            }, 60);
+          }catch(e){
+            box.innerHTML = '<p class="error">Impossible de générer le QR.</p>';
+            console.error(e);
           }
-        });
-
-
-        
-        // Afficher le QR dans la div #qrBox
-        qr.append(box);
-        
-        // Préparer le bouton "Télécharger le QR"
-        qr.getRawData("png").then(blob => {
-          const url = URL.createObjectURL(blob);
-          dl.href = url;
-          dl.style.display = "inline-block";
-        }).catch(e => {
-          console.error(e);
-        });
-
+        };
 
       }catch(err){
         console.error(err);
