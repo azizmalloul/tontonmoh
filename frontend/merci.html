@@ -153,7 +153,7 @@
               const bandTop = whiteBottom + 60;
 
               const iconSize = 250;              // taille de icon.png
-              const iconX = CARD_W / 2 - 450;    // légèrement à gauche du centre
+              const iconX = CARD_W / 2 - 500;    // légèrement à gauche du centre
               const iconY = bandTop + 40;
 
               const icon = new Image();
@@ -167,8 +167,8 @@
                 ctx.textAlign = 'left';
 
                 // permet daugmenter ou diminuer la taille de texte Tontonmoh (100px)
-                ctx.font = '150px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'; 
-                const textY = iconY + iconSize / 2 + 22;
+                ctx.font = '130px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'; 
+                const textY = iconY + iconSize / 2 + 26;
                 ctx.fillText('Tontonmoh', iconX + iconSize + 40, textY);
 
                 // 5) Export PNG
