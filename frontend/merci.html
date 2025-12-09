@@ -34,7 +34,8 @@
       <!-- le bouton "Télécharger le QR" sera ajouté en JS quand l'image est prête -->
     </div>
   </main>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  
+  <script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.5.0/lib/qr-code-styling.js"></script>
 
   <script>
     const p = new URLSearchParams(location.search);
@@ -54,44 +55,63 @@
       const account = new URL('/mon-compte.html', location.origin);
       account.searchParams.set('code', code);
       accountLink.href = account.toString();
-  
-      // 1) on ESSAIE d'afficher un PNG statique s'il existe
-      img.src = '/static/qrcodes/' + encodeURIComponent(code) + '.png';
-      img.onload = () => { img.style.display = 'block'; };
-      img.onerror = () => {
-        // 2) s'il n'existe pas -> on GENÈRE le QR localement
-        img.remove(); // on cache/supprime l'<img> cassé
-        try {
-          // Le contenu du QR : ici on met seulement le code public
-          // (si tu préfères un lien vers le compte, remplace "text: code" par
-          //  `text: account.toString()`).
-          const q = new QRCode(box, {
-            text: code,
-            width: 256,
-            height: 256,
-            correctLevel: QRCode.CorrectLevel.M,
-          });
-  
-          // petit délai le temps que qrcodejs rende une <img>
-          setTimeout(() => {
-            const genImg = box.querySelector('img'); // qrcodejs rend une <img>
-            if (genImg) {
-              // bouton "Télécharger le QR"
-              const a = document.createElement('a');
-              a.className = 'btn';
-              a.textContent = 'Télécharger le QR';
-              a.download = code + '.png';
-              a.href = genImg.src;
-              // on l’ajoute en bas de la carte
-              main.appendChild(a);
-            }
-          }, 50);
-        } catch(e) {
-          box.innerHTML = '<p class="error">Impossible de générer le QR.</p>';
-          console.error(e);
+    
+      // QR "pro" mais optimisé pour être bien lisible par le scanner
+      const qr = new QRCodeStyling({
+        width: 320,
+        height: 320,
+        type: "png",
+      
+        // le contenu reste le code à 6 caractères
+        data: code,
+      
+        // correction d'erreur au max (pour supporter le logo)
+        qrOptions: {
+          errorCorrectionLevel: "H"
+        },
+      
+        //image: "./assets/logo.png",
+      
+        dotsOptions: {
+          color: "#000000",
+          type: "square"
+        },
+        cornersSquareOptions: {
+          type: "square"
+        },
+        cornersDotOptions: {
+          type: "square"
+        },
+        backgroundOptions: {
+          color: "#ffffff"
+        },
+        imageOptions: {
+          crossOrigin: "anonymous",
+          // logo un peu plus petit + marge plus grande
+          margin: 12,
+          imageSize: 0.22
         }
-      };
+      });
+      
+
+    
+      // Affichage du QR dans la div #qrBox
+      qr.append(box);
+    
+      // Création du bouton "Télécharger le QR"
+      qr.getRawData("png").then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a   = document.createElement('a');
+        a.className = 'btn';
+        a.textContent = 'Télécharger le QR';
+        a.download = code + '.png';
+        a.href = url;
+        main.appendChild(a);
+      }).catch(e => {
+        console.error(e);
+      });
     }
+
   </script>
 
 </body>
