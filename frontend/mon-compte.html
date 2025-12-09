@@ -149,10 +149,9 @@
           text: code,
           width: 480,
           height: 480,
-          correctLevel: QRCode.CorrectLevel.H, // bonne marge pour le logo
+          correctLevel: QRCode.CorrectLevel.H, // robuste pour le logo au centre
         });
     
-        // qrcodejs rend une <img> ou un <canvas> → on attend un peu
         setTimeout(() => {
           const qrImg = qrRawEl.querySelector('img') || qrRawEl.querySelector('canvas');
           if (!qrImg) {
@@ -160,9 +159,9 @@
             return;
           }
     
-          // 2) Canvas final "style Wallet"
-          const CARD_W = 1024;
-          const CARD_H = 1280;
+          // ===== Canvas final "style Wallet" =====
+          const CARD_W = 1200;
+          const CARD_H = 1700;
           const canvas = document.createElement('canvas');
           canvas.width  = CARD_W;
           canvas.height = CARD_H;
@@ -172,10 +171,11 @@
           ctx.fillStyle = '#000000';
           ctx.fillRect(0, 0, CARD_W, CARD_H);
     
-          // Carte blanche en haut (arrondie) pour le QR
-          const marginX = 64;
-          const marginY = 48;
-          const whiteHeight = 720;            // hauteur de la zone blanche
+          // Carte blanche en haut (plus courte) : uniquement pour le QR
+          const marginX = 70;   // marge latérale -> cadre noir pas trop épais
+          const marginY = 80;   // marge haute
+          const whiteHeight = 980; // hauteur de la zone blanche (laisse une grosse bande noire en bas)
+    
           ctx.fillStyle = '#ffffff';
           roundedRect(
             ctx,
@@ -188,7 +188,7 @@
           ctx.fill();
     
           // QR centré dans la zone blanche
-          const qrSize = whiteHeight - 160;
+          const qrSize = whiteHeight - 220;
           const qrX = (CARD_W - qrSize) / 2;
           const qrY = marginY + (whiteHeight - qrSize) / 2;
     
@@ -202,11 +202,11 @@
             qrCtx.drawImage(imgObj, 0, 0, qrSize, qrSize);
             ctx.drawImage(qrCanvas, qrX, qrY);
     
-            // 3) Logo au centre du QR
+            // ===== Logo au centre du QR =====
             const logo = new Image();
             logo.src = './assets/logo.png';
             logo.onload = () => {
-              const logoSize = qrSize * 0.28;
+              const logoSize = qrSize * 0.27;
               const logoX = CARD_W / 2 - logoSize / 2;
               const logoY = qrY + qrSize / 2 - logoSize / 2;
     
@@ -227,11 +227,14 @@
               ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
               ctx.restore();
     
-              // 4) Bandeau du bas : icône smartphone + "Tontonmoh"
-              const bandTop = marginY + whiteHeight + 120;
-              const iconRadius = 72;
-              const iconX = CARD_W / 2 - 150;
-              const iconY = bandTop;
+              // ===== Bande noire du bas : téléphone + "Tontonmoh" =====
+              const whiteBottom = marginY + whiteHeight;  // fin de la carte blanche
+              const bandTop = whiteBottom + 60;           // début visuel de la zone téléphone
+              const iconRadius = 80;
+    
+              // Centre du rond icône (dans le noir)
+              const iconX = CARD_W / 2 - 160;
+              const iconY = bandTop + 140;
     
               // Rond blanc
               ctx.fillStyle = '#ffffff';
@@ -240,19 +243,19 @@
               ctx.closePath();
               ctx.fill();
     
-              // Emoji téléphone noir dedans
+              // Emoji téléphone en noir
               ctx.fillStyle = '#000000';
               ctx.textAlign = 'center';
-              ctx.font = '72px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-              ctx.fillText('📱', iconX, iconY + 26);
+              ctx.font = '80px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+              ctx.fillText('📱', iconX, iconY + 28);
     
-              // Texte "Tontonmoh" en blanc à droite
+              // Texte "Tontonmoh" en blanc à droite du rond
               ctx.fillStyle = '#ffffff';
               ctx.textAlign = 'left';
-              ctx.font = '52px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-              ctx.fillText('Tontonmoh', iconX + iconRadius + 32, iconY + 18);
+              ctx.font = '60px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+              ctx.fillText('Tontonmoh', iconX + iconRadius + 40, iconY + 22);
     
-              // 5) Export PNG
+              // Export PNG
               const dataUrl = canvas.toDataURL('image/png');
               resolve(dataUrl);
             };
@@ -263,6 +266,7 @@
         }, 60);
       });
     }
+
 
 
     // helper: rectangle arrondi
