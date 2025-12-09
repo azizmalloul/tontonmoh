@@ -12,30 +12,21 @@
     <h1>Votre carte fidélité est prête 🎉</h1>
   </header>
   <main class="container card center">
-    <p class="banner">
-      Enregistrez l'image du QR <strong>et notez bien votre code à 6 caractères</strong>.
-      Ils vous serviront pour vous connecter à votre compte.
-    </p>
+    <p class="banner">Enregistrez l'image du QR. Vous la recevrez aussi par e-mail.</p>
     <div class="qr-wrapper">
       <img id="qrImg" alt="QR fidélité" style="display:none" />
       <div id="qrBox"></div>
     </div>
     <p id="codeText" class="muted"></p>
     <h2>Comment ça marche ?</h2>
-   
     <ol class="container" style="text-align:left">
       <li>À chaque achat, le vendeur saisit le montant et scanne votre QR.</li>
       <li>Votre cumul progresse vers <b>80 €</b>. Chaque palier atteint = <b>1 cadeau</b>.</li>
-      <li>Avec votre <b>code à 6 caractères</b>, vous pouvez vous connecter pour voir votre cumul et l’historique.</li>
+      <li>“Mon compte” permet de voir le cumul et l’historique.</li>
     </ol>
-
-    <div class="row" style="justify-content:center; gap:1rem; flex-wrap:wrap; margin-top:1rem;">
-      <a id="accountLink" class="btn" href="#">Accéder à mon compte</a>
-      <!-- le bouton "Télécharger le QR" sera ajouté en JS quand l'image est prête -->
-    </div>
+    <p><a id="accountLink" class="btn" href="#">Accéder à mon compte</a></p>
   </main>
-  
-  <script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.5.0/lib/qr-code-styling.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <script>
     const p = new URLSearchParams(location.search);
@@ -55,63 +46,44 @@
       const account = new URL('/mon-compte.html', location.origin);
       account.searchParams.set('code', code);
       accountLink.href = account.toString();
-    
-      // QR "pro" mais optimisé pour être bien lisible par le scanner
-      const qr = new QRCodeStyling({
-        width: 320,
-        height: 320,
-        type: "png",
-      
-        // le contenu reste le code à 6 caractères
-        data: code,
-      
-        // correction d'erreur au max (pour supporter le logo)
-        qrOptions: {
-          errorCorrectionLevel: "H"
-        },
-      
-        //image: "./assets/logo.png",
-      
-        dotsOptions: {
-          color: "#000000",
-          type: "square"
-        },
-        cornersSquareOptions: {
-          type: "square"
-        },
-        cornersDotOptions: {
-          type: "square"
-        },
-        backgroundOptions: {
-          color: "#ffffff"
-        },
-        imageOptions: {
-          crossOrigin: "anonymous",
-          // logo un peu plus petit + marge plus grande
-          margin: 12,
-          imageSize: 0.22
+  
+      // 1) on ESSAIE d'afficher un PNG statique s'il existe
+      img.src = '/static/qrcodes/' + encodeURIComponent(code) + '.png';
+      img.onload = () => { img.style.display = 'block'; };
+      img.onerror = () => {
+        // 2) s'il n'existe pas -> on GENÈRE le QR localement
+        img.remove(); // on cache/supprime l'<img> cassé
+        try {
+          // Le contenu du QR : ici on met seulement le code public
+          // (si tu préfères un lien vers le compte, remplace "text: code" par
+          //  `text: account.toString()`).
+          const q = new QRCode(box, {
+            text: code,
+            width: 256,
+            height: 256,
+            correctLevel: QRCode.CorrectLevel.M,
+          });
+  
+          // petit délai le temps que qrcodejs rende une <img>
+          setTimeout(() => {
+            const genImg = box.querySelector('img'); // qrcodejs rend une <img>
+            if (genImg) {
+              // bouton "Télécharger le QR"
+              const a = document.createElement('a');
+              a.className = 'btn';
+              a.textContent = 'Télécharger le QR';
+              a.download = code + '.png';
+              a.href = genImg.src;
+              // on l’ajoute en bas de la carte
+              main.appendChild(a);
+            }
+          }, 50);
+        } catch(e) {
+          box.innerHTML = '<p class="error">Impossible de générer le QR.</p>';
+          console.error(e);
         }
-      });
-      
-
-    
-      // Affichage du QR dans la div #qrBox
-      qr.append(box);
-    
-      // Création du bouton "Télécharger le QR"
-      qr.getRawData("png").then(blob => {
-        const url = URL.createObjectURL(blob);
-        const a   = document.createElement('a');
-        a.className = 'btn';
-        a.textContent = 'Télécharger le QR';
-        a.download = code + '.png';
-        a.href = url;
-        main.appendChild(a);
-      }).catch(e => {
-        console.error(e);
-      });
+      };
     }
-
   </script>
 
 </body>
