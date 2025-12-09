@@ -9,11 +9,11 @@
 <body>
   <header class="container center">
     <img src="./assets/logo.png" alt="Chez Tonton Moh" class="logo" />
-    <h1>Votre carte fidélité est prête 🎉🎉🎉</h1>
+    <h1>Votre carte fidélité est prête 🎉</h1>
   </header>
 
   <main class="container card center">
-    <p class="banner">Version V2 — Enregistrez l'image du QR (nouveau design).</p>
+    <p class="banner">Enregistrez l'image du QR. Vous la recevrez aussi par e-mail.</p>
 
     <div class="qr-wrapper">
       <!-- image finale stylée -->
@@ -25,7 +25,6 @@
 
     <p id="codeText" class="muted"></p>
 
-    
     <h2>Comment ça marche ?</h2>
     <ol class="container" style="text-align:left">
       <li>À chaque achat, le vendeur saisit le montant et scanne votre QR.</li>
@@ -77,7 +76,7 @@
     // --------- FONCTION QUI DESSINE LE STYLE "TONTONMOH" ----------
     function generateStyledQr(code) {
       return new Promise((resolve, reject) => {
-        const qrRawEl = qrRaw;         // zone cachée
+        const qrRawEl = qrRaw;          // zone cachée
         qrRawEl.innerHTML = '';
 
         // 1) QR brut
@@ -163,7 +162,7 @@
                 // dessiner l'icône (elle contient déjà son cercle)
                 ctx.drawImage(icon, iconX, iconY, iconSize, iconSize);
 
-                // Texte "Tontonmoh" aligné verticalement au milieu de l’icône
+                // Texte "Tontonmoh" aligné verticalement au milieu de l'icône
                 ctx.fillStyle = '#ffffff';
                 ctx.textAlign = 'left';
                 ctx.font = '64px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
@@ -185,7 +184,7 @@
       });
     }
 
-    // helper: dessiner un rectangle arrondi
+    // helper: dessiner un rectangle arrondi 
     function roundedRect(ctx, x, y, w, h, r) {
       ctx.beginPath();
       ctx.moveTo(x + r, y);
