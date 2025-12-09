@@ -11,17 +11,20 @@
     <img src="./assets/logo.png" alt="Chez Tonton Moh" class="logo" />
     <h1>Votre carte fidélité est prête 🎉</h1>
   </header>
+
   <main class="container card center">
     <p class="banner">Enregistrez l'image du QR. Vous la recevrez aussi par e-mail.</p>
+
     <div class="qr-wrapper">
       <!-- image finale stylée -->
       <img id="qrFinal" alt="QR fidélité TontonMoh" />
-    
+
       <!-- zone cachée pour générer le QR brut -->
       <div id="qrRaw" style="display:none"></div>
     </div>
 
     <p id="codeText" class="muted"></p>
+
     <h2>Comment ça marche ?</h2>
     <ol class="container" style="text-align:left">
       <li>À chaque achat, le vendeur saisit le montant et scanne votre QR.</li>
@@ -30,161 +33,175 @@
     </ol>
     <p><a id="accountLink" class="btn" href="#">Accéder à mon compte</a></p>
   </main>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
   <script>
-  const p = new URLSearchParams(location.search);
-  const code = (p.get('code') || '').toUpperCase();
+    const p = new URLSearchParams(location.search);
+    const code = (p.get('code') || '').toUpperCase();
 
-  const main        = document.querySelector('main');
-  const qrFinal     = document.getElementById('qrFinal');
-  const qrRaw       = document.getElementById('qrRaw');
-  const codeText    = document.getElementById('codeText');
-  const accountLink = document.getElementById('accountLink');
+    const main        = document.querySelector('main');
+    const qrFinal     = document.getElementById('qrFinal');
+    const qrRaw       = document.getElementById('qrRaw');
+    const codeText    = document.getElementById('codeText');
+    const accountLink = document.getElementById('accountLink');
 
-  if (!code) {
-    main.innerHTML = '<p class="error">Code introuvable.</p>';
-  } else {
-    // texte + lien "Mon compte"
-    codeText.textContent = 'Code : ' + code;
-    const account = new URL('/mon-compte.html', location.origin);
-    account.searchParams.set('code', code);
-    accountLink.href = account.toString();
+    if (!code) {
+      main.innerHTML = '<p class="error">Code introuvable.</p>';
+    } else {
+      // Texte + lien "Mon compte"
+      codeText.textContent = 'Code : ' + code;
+      const account = new URL('/mon-compte.html', location.origin);
+      account.searchParams.set('code', code);
+      accountLink.href = account.toString();
 
-    // génération du QR stylé
-    generateStyledQr(code)
-      .then((dataUrl) => {
-        qrFinal.src = dataUrl;
+      // Génération du QR stylé
+      generateStyledQr(code)
+        .then((dataUrl) => {
+          qrFinal.src = dataUrl;
 
-        // bouton "Télécharger le QR"
-        const a = document.createElement('a');
-        a.className = 'btn';
-        a.textContent = 'Télécharger le QR';
-        a.download = code + '.png';
-        a.href = dataUrl;
-        main.appendChild(a);
-      })
-      .catch((e) => {
-        console.error(e);
-        qrRaw.innerHTML = '<p class="error">Impossible de générer le QR.</p>';
-      });
-  }
+          // bouton "Télécharger le QR"
+          const a = document.createElement('a');
+          a.className = 'btn';
+          a.textContent = 'Télécharger le QR';
+          a.download = code + '.png';
+          a.href = dataUrl;
+          main.appendChild(a);
+        })
+        .catch((e) => {
+          console.error(e);
+          main.insertAdjacentHTML('beforeend', '<p class="error">Impossible de générer le QR.</p>');
+        });
+    }
 
-  // --------- FONCTION QUI DESSINE LE STYLE "TONTONMOH" ----------
-  function generateStyledQr(code) {
-    return new Promise((resolve, reject) => {
-      const qrRawEl = document.getElementById('qrBox'); // ou l’élément que tu utilises
-      qrRawEl.innerHTML = '';
-      const qr = new QRCode(qrRawEl, {
-        text: code,
-        width: 480,
-        height: 480,
-        correctLevel: QRCode.CorrectLevel.H,
-      });
-  
-      setTimeout(() => {
-        const qrImg = qrRawEl.querySelector('img') || qrRawEl.querySelector('canvas');
-        if (!qrImg) {
-          reject(new Error('QR brut introuvable'));
-          return;
-        }
-  
-        const CARD_W = 1024;
-        const CARD_H = 1280;
-        const canvas = document.createElement('canvas');
-        canvas.width  = CARD_W;
-        canvas.height = CARD_H;
-        const ctx = canvas.getContext('2d');
-  
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, CARD_W, CARD_H);
-  
-        const marginX = 64;
-        const marginY = 48;
-        const whiteHeight = 720;
-        ctx.fillStyle = '#ffffff';
-        roundedRect(ctx, marginX, marginY, CARD_W - 2*marginX, whiteHeight, 72);
-        ctx.fill();
-  
-        const qrSize = whiteHeight - 160;
-        const qrX = (CARD_W - qrSize) / 2;
-        const qrY = marginY + (whiteHeight - qrSize) / 2;
-  
-        const qrCanvas = document.createElement('canvas');
-        qrCanvas.width = qrSize;
-        qrCanvas.height = qrSize;
-        const qrCtx = qrCanvas.getContext('2d');
-  
-        const imgObj = new Image();
-        imgObj.onload = () => {
-          qrCtx.drawImage(imgObj, 0, 0, qrSize, qrSize);
-          ctx.drawImage(qrCanvas, qrX, qrY);
-  
-          const logo = new Image();
-          logo.src = './assets/logo.png';
-          logo.onload = () => {
-            const logoSize = qrSize * 0.28;
-            const logoX = CARD_W/2 - logoSize/2;
-            const logoY = qrY + qrSize/2 - logoSize/2;
-  
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(CARD_W/2, qrY + qrSize/2, logoSize/2 + 10, 0, Math.PI*2);
-            ctx.closePath();
-            ctx.fillStyle = '#ffffff';
-            ctx.fill();
-  
-            ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
-            ctx.restore();
-  
-            const bandTop = marginY + whiteHeight + 120;
-            const iconRadius = 72;
-            const iconX = CARD_W/2 - 150;
-            const iconY = bandTop;
-  
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.arc(iconX, iconY, iconRadius, 0, Math.PI*2);
-            ctx.closePath();
-            ctx.fill();
-  
-            ctx.fillStyle = '#000000';
-            ctx.textAlign = 'center';
-            ctx.font = '72px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-            ctx.fillText('📱', iconX, iconY + 26);
-  
-            ctx.fillStyle = '#ffffff';
-            ctx.textAlign = 'left';
-            ctx.font = '52px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-            ctx.fillText('Tontonmoh', iconX + iconRadius + 32, iconY + 18);
-  
-            const dataUrl = canvas.toDataURL('image/png');
-            resolve(dataUrl);
+    // --------- FONCTION QUI DESSINE LE STYLE "TONTONMOH" ----------
+    function generateStyledQr(code) {
+      return new Promise((resolve, reject) => {
+        const qrRawEl = qrRaw;          // zone cachée
+        qrRawEl.innerHTML = '';
+
+        // 1) QR brut
+        const qr = new QRCode(qrRawEl, {
+          text: code,
+          width: 480,
+          height: 480,
+          correctLevel: QRCode.CorrectLevel.H,
+        });
+
+        setTimeout(() => {
+          const qrImg = qrRawEl.querySelector('img') || qrRawEl.querySelector('canvas');
+          if (!qrImg) {
+            reject(new Error('QR brut introuvable'));
+            return;
+          }
+
+          // 2) Canvas final style Wallet
+          const CARD_W = 1200;
+          const CARD_H = 1700;
+          const canvas = document.createElement('canvas');
+          canvas.width  = CARD_W;
+          canvas.height = CARD_H;
+          const ctx = canvas.getContext('2d');
+
+          // Fond noir
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(0, 0, CARD_W, CARD_H);
+
+          // Bloc blanc en haut (plus court, seulement pour le QR)
+          const marginX = 70;
+          const marginY = 80;
+          const whiteHeight = 980; // laisse une grosse bande noire en bas
+
+          ctx.fillStyle = '#ffffff';
+          roundedRect(ctx, marginX, marginY, CARD_W - 2 * marginX, whiteHeight, 72);
+          ctx.fill();
+
+          // QR centré dans le bloc blanc
+          const qrSize = whiteHeight - 220;
+          const qrX = (CARD_W - qrSize) / 2;
+          const qrY = marginY + (whiteHeight - qrSize) / 2;
+
+          const qrCanvas = document.createElement('canvas');
+          qrCanvas.width = qrSize;
+          qrCanvas.height = qrSize;
+          const qrCtx = qrCanvas.getContext('2d');
+
+          const imgObj = new Image();
+          imgObj.onload = () => {
+            qrCtx.drawImage(imgObj, 0, 0, qrSize, qrSize);
+            ctx.drawImage(qrCanvas, qrX, qrY);
+
+            // 3) Logo au centre du QR
+            const logo = new Image();
+            logo.src = './assets/logo.png';
+            logo.onload = () => {
+              const logoSize = qrSize * 0.27;
+              const logoX = CARD_W / 2 - logoSize / 2;
+              const logoY = qrY + qrSize / 2 - logoSize / 2;
+
+              ctx.save();
+              ctx.beginPath();
+              ctx.arc(CARD_W / 2, qrY + qrSize / 2, logoSize / 2 + 10, 0, Math.PI * 2);
+              ctx.closePath();
+              ctx.fillStyle = '#ffffff';
+              ctx.fill();
+
+              ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
+              ctx.restore();
+
+              // 4) Bandeau bas dans le noir : téléphone + "Tontonmoh"
+              const whiteBottom = marginY + whiteHeight;  // bas du bloc blanc
+              const bandTop = whiteBottom + 60;
+              const iconRadius = 80;
+
+              const iconX = CARD_W / 2 - 160;
+              const iconY = bandTop + 140;
+
+              // Rond blanc
+              ctx.fillStyle = '#ffffff';
+              ctx.beginPath();
+              ctx.arc(iconX, iconY, iconRadius, 0, Math.PI * 2);
+              ctx.closePath();
+              ctx.fill();
+
+              // Emoji téléphone
+              ctx.fillStyle = '#000000';
+              ctx.textAlign = 'center';
+              ctx.font = '80px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+              ctx.fillText('📱', iconX, iconY + 28);
+
+              // Texte "Tontonmoh"
+              ctx.fillStyle = '#ffffff';
+              ctx.textAlign = 'left';
+              ctx.font = '60px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+              ctx.fillText('Tontonmoh', iconX + iconRadius + 40, iconY + 22);
+
+              // 5) Export PNG
+              const dataUrl = canvas.toDataURL('image/png');
+              resolve(dataUrl);
+            };
+            logo.onerror = () => reject(new Error('Logo introuvable'));
           };
-          logo.onerror = () => reject(new Error('Logo introuvable'));
-        };
-        imgObj.onerror = () => reject(new Error('Image QR brute introuvable'));
-        imgObj.src = qrImg.src || (qrImg.toDataURL && qrImg.toDataURL());
-      }, 60);
-    });
-  }
+          imgObj.onerror = () => reject(new Error('Image QR brute introuvable'));
 
+          imgObj.src = qrImg.src || (qrImg.toDataURL && qrImg.toDataURL());
+        }, 60);
+      });
+    }
 
-  // helper: dessiner un rectangle arrondi
-  function roundedRect(ctx, x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
-  }
-</script>
-
+    // helper: dessiner un rectangle arrondi
+    function roundedRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+  </script>
 </body>
 </html>
