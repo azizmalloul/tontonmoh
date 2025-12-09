@@ -106,7 +106,7 @@
           ctx.fillStyle = '#000000';
           ctx.fillRect(0, 0, CARD_W, CARD_H);
 
-          // Bloc blanc en haut (plus court, seulement pour le QR)
+          // Bloc blanc en haut (pour le QR seulement)
           const marginX = 70;
           const marginY = 80;
           const whiteHeight = 980; // laisse une grosse bande noire en bas
@@ -148,38 +148,34 @@
               ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
               ctx.restore();
 
-              // 4) Bandeau bas dans le noir : téléphone + "Tontonmoh"
-              const whiteBottom = marginY + whiteHeight;  // bas du bloc blanc
+              // 4) Icône téléphone + texte Tontonmoh dans la bande noire
+              const whiteBottom = marginY + whiteHeight;
               const bandTop = whiteBottom + 60;
-              const iconRadius = 80;
 
-              const iconX = CARD_W / 2 - 160;
-              const iconY = bandTop + 140;
+              const iconSize = 220;              // taille de icon.png
+              const iconX = CARD_W / 2 - 260;    // légèrement à gauche du centre
+              const iconY = bandTop + 40;
 
-              // Rond blanc
-              ctx.fillStyle = '#ffffff';
-              ctx.beginPath();
-              ctx.arc(iconX, iconY, iconRadius, 0, Math.PI * 2);
-              ctx.closePath();
-              ctx.fill();
+              const icon = new Image();
+              icon.src = './assets/icon.png';
+              icon.onload = () => {
+                // dessiner l'icône (elle contient déjà son cercle)
+                ctx.drawImage(icon, iconX, iconY, iconSize, iconSize);
 
-              // Emoji téléphone
-              ctx.fillStyle = '#000000';
-              ctx.textAlign = 'center';
-              ctx.font = '80px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-              ctx.fillText('📱', iconX, iconY + 28);
+                // Texte "Tontonmoh" aligné verticalement au milieu de l'icône
+                ctx.fillStyle = '#ffffff';
+                ctx.textAlign = 'left';
+                ctx.font = '64px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                const textY = iconY + iconSize / 2 + 22;
+                ctx.fillText('Tontonmoh', iconX + iconSize + 40, textY);
 
-              // Texte "Tontonmoh"
-              ctx.fillStyle = '#ffffff';
-              ctx.textAlign = 'left';
-              ctx.font = '60px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-              ctx.fillText('Tontonmoh', iconX + iconRadius + 40, iconY + 22);
-
-              // 5) Export PNG
-              const dataUrl = canvas.toDataURL('image/png');
-              resolve(dataUrl);
+                // 5) Export PNG
+                const dataUrl = canvas.toDataURL('image/png');
+                resolve(dataUrl);
+              };
+              icon.onerror = () => reject(new Error('icon.png introuvable'));
             };
-            logo.onerror = () => reject(new Error('Logo introuvable'));
+            logo.onerror = () => reject(new Error('logo.png introuvable'));
           };
           imgObj.onerror = () => reject(new Error('Image QR brute introuvable'));
 
