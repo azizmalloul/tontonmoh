@@ -149,9 +149,9 @@
           text: code,
           width: 480,
           height: 480,
-          correctLevel: QRCode.CorrectLevel.H,  // plus de robustesse pour le logo
+          correctLevel: QRCode.CorrectLevel.H, // bonne marge pour le logo
         });
-
+    
         // qrcodejs rend une <img> ou un <canvas> → on attend un peu
         setTimeout(() => {
           const qrImg = qrRawEl.querySelector('img') || qrRawEl.querySelector('canvas');
@@ -159,71 +159,100 @@
             reject(new Error('QR brut introuvable'));
             return;
           }
-
-          // 2) Canvas final (carte)
-          const CARD_W = 800;
-          const CARD_H = 1000;
+    
+          // 2) Canvas final "style Wallet"
+          const CARD_W = 1024;
+          const CARD_H = 1280;
           const canvas = document.createElement('canvas');
           canvas.width  = CARD_W;
           canvas.height = CARD_H;
           const ctx = canvas.getContext('2d');
-
-          // fond noir
+    
+          // Fond noir
           ctx.fillStyle = '#000000';
           ctx.fillRect(0, 0, CARD_W, CARD_H);
-
-          // carte blanche arrondie
-          const margin = 40;
-          const radius = 80;
-          roundedRect(ctx, margin, margin, CARD_W - 2*margin, CARD_H - 2*margin, radius);
+    
+          // Carte blanche en haut (arrondie) pour le QR
+          const marginX = 64;
+          const marginY = 48;
+          const whiteHeight = 720;            // hauteur de la zone blanche
           ctx.fillStyle = '#ffffff';
+          roundedRect(
+            ctx,
+            marginX,
+            marginY,
+            CARD_W - 2 * marginX,
+            whiteHeight,
+            72
+          );
           ctx.fill();
-
-          // QR au centre
-          const qrSize = 520;
+    
+          // QR centré dans la zone blanche
+          const qrSize = whiteHeight - 160;
           const qrX = (CARD_W - qrSize) / 2;
-          const qrY = margin + 80;
-
+          const qrY = marginY + (whiteHeight - qrSize) / 2;
+    
           const qrCanvas = document.createElement('canvas');
           qrCanvas.width = qrSize;
           qrCanvas.height = qrSize;
           const qrCtx = qrCanvas.getContext('2d');
-
+    
           const imgObj = new Image();
           imgObj.onload = () => {
             qrCtx.drawImage(imgObj, 0, 0, qrSize, qrSize);
             ctx.drawImage(qrCanvas, qrX, qrY);
-
-            // logo au centre
+    
+            // 3) Logo au centre du QR
             const logo = new Image();
             logo.src = './assets/logo.png';
             logo.onload = () => {
               const logoSize = qrSize * 0.28;
-              const logoX = CARD_W/2 - logoSize/2;
-              const logoY = qrY + qrSize/2 - logoSize/2;
-
+              const logoX = CARD_W / 2 - logoSize / 2;
+              const logoY = qrY + qrSize / 2 - logoSize / 2;
+    
               // disque blanc derrière le logo
               ctx.save();
               ctx.beginPath();
-              ctx.arc(CARD_W/2, qrY + qrSize/2, logoSize/2 + 10, 0, Math.PI * 2);
+              ctx.arc(
+                CARD_W / 2,
+                qrY + qrSize / 2,
+                logoSize / 2 + 10,
+                0,
+                Math.PI * 2
+              );
               ctx.closePath();
               ctx.fillStyle = '#ffffff';
               ctx.fill();
-
+    
               ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
               ctx.restore();
-
-              // bas : icône smartphone + texte Tontonmoh
-              const bottomY = qrY + qrSize + 120;
+    
+              // 4) Bandeau du bas : icône smartphone + "Tontonmoh"
+              const bandTop = marginY + whiteHeight + 120;
+              const iconRadius = 72;
+              const iconX = CARD_W / 2 - 150;
+              const iconY = bandTop;
+    
+              // Rond blanc
+              ctx.fillStyle = '#ffffff';
+              ctx.beginPath();
+              ctx.arc(iconX, iconY, iconRadius, 0, Math.PI * 2);
+              ctx.closePath();
+              ctx.fill();
+    
+              // Emoji téléphone noir dedans
               ctx.fillStyle = '#000000';
               ctx.textAlign = 'center';
-
-              ctx.font = '64px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-              ctx.fillText('📱', CARD_W / 2, bottomY);
-
-              ctx.font = '40px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-              ctx.fillText('Tontonmoh', CARD_W / 2, bottomY + 60);
-
+              ctx.font = '72px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+              ctx.fillText('📱', iconX, iconY + 26);
+    
+              // Texte "Tontonmoh" en blanc à droite
+              ctx.fillStyle = '#ffffff';
+              ctx.textAlign = 'left';
+              ctx.font = '52px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+              ctx.fillText('Tontonmoh', iconX + iconRadius + 32, iconY + 18);
+    
+              // 5) Export PNG
               const dataUrl = canvas.toDataURL('image/png');
               resolve(dataUrl);
             };
@@ -231,9 +260,10 @@
           };
           imgObj.onerror = () => reject(new Error('Image QR brute introuvable'));
           imgObj.src = qrImg.src || (qrImg.toDataURL && qrImg.toDataURL());
-        }, 50);
+        }, 60);
       });
     }
+
 
     // helper: rectangle arrondi
     function roundedRect(ctx, x, y, w, h, r) {
