@@ -21,25 +21,27 @@ input:focus{outline:2px solid var(--primary);border-color:transparent}
 .banner{padding:12px;border-radius:12px;background:#ecfdf5;color:#065f46;margin:12px 0}
 
 
-/* --- QR centré et propre --- */
+/* --- QR centré et style "carte" --- */
 .qr-wrapper{
-  width: min(320px, 80vw);
-  margin: 16px auto 8px;            /* centre horizontalement */
-  padding: 12px;
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 10px 24px rgba(0,0,0,.08);
+  width: min(340px, 90vw);
+  margin: 16px auto 8px;
+  padding: 16px;
+  background: #000;               /* fond noir autour, comme ton exemple */
+  border-radius: 24px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
 }
 
-/* l’image ou le canvas généré par qrcodejs remplissent le cadre */
-.qr-wrapper img,
-.qr-wrapper canvas{
-  display: block;
-  width: 100% !important;
-  height: auto !important;
-  border-radius: 12px;
-  image-rendering: pixelated;       /* beau rendu des carrés noirs */
+/* l’image générée remplit la carte */
+.qr-wrapper img{
+  display:block;
+  width:100%;
+  height:auto;
+  border-radius: 20px;            /* coins arrondis de la "carte" blanche */
+  box-shadow: 0 10px 24px rgba(0,0,0,.25);
 }
+
 
 /* texte du code en dessous, centré et discret */
 #codeText{
