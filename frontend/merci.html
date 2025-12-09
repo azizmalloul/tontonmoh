@@ -165,7 +165,9 @@
                 // Texte "Tontonmoh" aligné verticalement au milieu de l'icône
                 ctx.fillStyle = '#ffffff';
                 ctx.textAlign = 'left';
-                ctx.font = '100px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'; // permet daugmenter ou diminuer la taille de texte Tontonmoh
+
+                // permet daugmenter ou diminuer la taille de texte Tontonmoh (100px)
+                ctx.font = '150px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'; 
                 const textY = iconY + iconSize / 2 + 22;
                 ctx.fillText('Tontonmoh', iconX + iconSize + 40, textY);
 
