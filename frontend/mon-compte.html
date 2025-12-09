@@ -20,17 +20,18 @@
     </section>
   </main>
 
-  <!-- qrcodejs pour générer le QR -->
+  <!-- qrcodejs pour générer le QR brut -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script>
     const API = 'https://tontonmoh-api.azizekarma.workers.dev';
 
     const elContent = document.getElementById('content');
     const p = new URLSearchParams(location.search);
-    const code = (p.get('code') || '').trim().toUpperCase();
+    const codeFromUrl = (p.get('code') || '').trim().toUpperCase();
 
     function euros(cents){ return (Number(cents||0)/100).toFixed(2) + ' €'; }
     function showError(msg){ elContent.innerHTML = `<p class="error">${msg}</p>`; }
+
     function txRow(tx){
       const sign = tx.status === 'OK' ? '+' : '±';
       const dt = new Date(tx.created_at || tx.createdAt || tx.ts || Date.now());
@@ -45,14 +46,14 @@
     }
 
     async function main(){
-      if (!code){
+      if (!codeFromUrl){
         showError('Aucun code fourni. Ouvrez cette page via “Accéder à mon compte”.');
         return;
       }
 
       try{
         // 1) Client + solde
-        const rCli = await fetch(`${API}/api/clients/by-code/${encodeURIComponent(code)}`);
+        const rCli = await fetch(`${API}/api/clients/by-code/${encodeURIComponent(codeFromUrl)}`);
         if (!rCli.ok) throw new Error('Client introuvable');
         const cli = await rCli.json();
 
@@ -60,13 +61,14 @@
         const rTx = await fetch(`${API}/api/transactions?client_id=${encodeURIComponent(cli.id)}&limit=20`);
         const txs = rTx.ok ? await rTx.json() : [];
 
-        // 3) Affichage
-        const full = `${cli.first_name || ''} ${cli.last_name || ''}`.trim() || 'Client';
+        const fullName = `${cli.first_name || ''} ${cli.last_name || ''}`.trim() || 'Client';
+
+        // 3) HTML de la page (avec image finale + div cachée pour le QR brut)
         elContent.innerHTML = `
           <div class="grid">
             <div>
-              <h2 style="margin-top:0">${full}</h2>
-              <p class="muted kv">Code : <b id="codePublicText">${cli.code_public}</b></p>
+              <h2 style="margin-top:0">${fullName}</h2>
+              <p class="muted kv">Code : <b id="codePublic">${cli.code_public}</b></p>
               <p class="kv">Cumul : <b>${euros(cli.balance)}</b></p>
               <p class="kv">Cadeaux obtenus : <b>${cli.gifts_count}</b></p>
             </div>
@@ -76,15 +78,11 @@
               <div class="qr-wrapper">
                 <!-- image finale stylée -->
                 <img id="qrFinal" alt="QR fidélité TontonMoh" />
-                <!-- zone cachée pour générer le QR brut -->
+                <!-- zone cachée pour le QR brut -->
                 <div id="qrRaw" style="display:none"></div>
               </div>
               <p id="codeText">Code : <b>${cli.code_public}</b></p>
-              <p>
-                <a id="dlQR" class="btn" href="#" download="${cli.code_public}.png" style="display:none">
-                  Télécharger le QR
-                </a>
-              </p>
+              <p><a id="dlQR" class="btn" href="#" download="${cli.code_public}.png" style="display:none">Télécharger le QR</a></p>
             </div>
           </div>
 
@@ -116,18 +114,19 @@
           </p>
         `;
 
-        // 4) QR stylé "TontonMoh"
+        // 4) Générer la même carte stylée que sur merci.html
         const qrFinal = document.getElementById('qrFinal');
         const qrRaw   = document.getElementById('qrRaw');
-        const dl      = document.getElementById('dlQR');
+        const dlQR    = document.getElementById('dlQR');
+        const codePublic = cli.code_public;
 
-        generateStyledQr(cli.code_public, qrRaw)
-          .then((dataUrl) => {
+        generateStyledQr(codePublic, qrRaw)
+          .then((dataUrl)=>{
             qrFinal.src = dataUrl;
-            dl.href = dataUrl;
-            dl.style.display = 'inline-block';
+            dlQR.href   = dataUrl;
+            dlQR.style.display = 'inline-block';
           })
-          .catch((e) => {
+          .catch((e)=>{
             console.error(e);
             qrRaw.innerHTML = '<p class="error">Impossible de générer le QR.</p>';
           });
@@ -138,138 +137,111 @@
       }
     }
 
-    main();
-
-    // --------- FONCTION QUI DESSINE LE STYLE "TONTONMOH" ----------
+    // --------- même fonction que dans merci.html ---------
     function generateStyledQr(code, qrRawEl) {
       return new Promise((resolve, reject) => {
-        // 1) Générer le QR brut dans un div caché
         qrRawEl.innerHTML = '';
+
+        // QR brut
         const qr = new QRCode(qrRawEl, {
           text: code,
           width: 480,
           height: 480,
-          correctLevel: QRCode.CorrectLevel.H, // robuste pour le logo au centre
+          correctLevel: QRCode.CorrectLevel.H,
         });
-    
+
         setTimeout(() => {
           const qrImg = qrRawEl.querySelector('img') || qrRawEl.querySelector('canvas');
           if (!qrImg) {
             reject(new Error('QR brut introuvable'));
             return;
           }
-    
-          // ===== Canvas final "style Wallet" =====
+
           const CARD_W = 1200;
           const CARD_H = 1700;
           const canvas = document.createElement('canvas');
           canvas.width  = CARD_W;
           canvas.height = CARD_H;
           const ctx = canvas.getContext('2d');
-    
+
           // Fond noir
           ctx.fillStyle = '#000000';
           ctx.fillRect(0, 0, CARD_W, CARD_H);
-    
-          // Carte blanche en haut (plus courte) : uniquement pour le QR
-          const marginX = 70;   // marge latérale -> cadre noir pas trop épais
-          const marginY = 80;   // marge haute
-          const whiteHeight = 980; // hauteur de la zone blanche (laisse une grosse bande noire en bas)
-    
+
+          // Bloc blanc en haut (QR uniquement)
+          const marginX = 70;
+          const marginY = 80;
+          const whiteHeight = 980;
+
           ctx.fillStyle = '#ffffff';
-          roundedRect(
-            ctx,
-            marginX,
-            marginY,
-            CARD_W - 2 * marginX,
-            whiteHeight,
-            72
-          );
+          roundedRect(ctx, marginX, marginY, CARD_W - 2 * marginX, whiteHeight, 72);
           ctx.fill();
-    
-          // QR centré dans la zone blanche
+
+          // QR centré
           const qrSize = whiteHeight - 220;
           const qrX = (CARD_W - qrSize) / 2;
           const qrY = marginY + (whiteHeight - qrSize) / 2;
-    
+
           const qrCanvas = document.createElement('canvas');
           qrCanvas.width = qrSize;
           qrCanvas.height = qrSize;
           const qrCtx = qrCanvas.getContext('2d');
-    
+
           const imgObj = new Image();
           imgObj.onload = () => {
             qrCtx.drawImage(imgObj, 0, 0, qrSize, qrSize);
             ctx.drawImage(qrCanvas, qrX, qrY);
-    
-            // ===== Logo au centre du QR =====
+
+            // Logo au centre
             const logo = new Image();
             logo.src = './assets/logo.png';
             logo.onload = () => {
               const logoSize = qrSize * 0.27;
               const logoX = CARD_W / 2 - logoSize / 2;
               const logoY = qrY + qrSize / 2 - logoSize / 2;
-    
-              // disque blanc derrière le logo
+
               ctx.save();
               ctx.beginPath();
-              ctx.arc(
-                CARD_W / 2,
-                qrY + qrSize / 2,
-                logoSize / 2 + 10,
-                0,
-                Math.PI * 2
-              );
+              ctx.arc(CARD_W / 2, qrY + qrSize / 2, logoSize / 2 + 10, 0, Math.PI * 2);
               ctx.closePath();
               ctx.fillStyle = '#ffffff';
               ctx.fill();
-    
               ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
               ctx.restore();
-    
-              // ===== Bande noire du bas : téléphone + "Tontonmoh" =====
-              const whiteBottom = marginY + whiteHeight;  // fin de la carte blanche
-              const bandTop = whiteBottom + 60;           // début visuel de la zone téléphone
-              const iconRadius = 80;
-    
-              // Centre du rond icône (dans le noir)
-              const iconX = CARD_W / 2 - 160;
-              const iconY = bandTop + 140;
-    
-              // Rond blanc
-              ctx.fillStyle = '#ffffff';
-              ctx.beginPath();
-              ctx.arc(iconX, iconY, iconRadius, 0, Math.PI * 2);
-              ctx.closePath();
-              ctx.fill();
-    
-              // Emoji téléphone en noir
-              ctx.fillStyle = '#000000';
-              ctx.textAlign = 'center';
-              ctx.font = '80px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-              ctx.fillText('📱', iconX, iconY + 28);
-    
-              // Texte "Tontonmoh" en blanc à droite du rond
-              ctx.fillStyle = '#ffffff';
-              ctx.textAlign = 'left';
-              ctx.font = '60px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-              ctx.fillText('Tontonmoh', iconX + iconRadius + 40, iconY + 22);
-    
-              // Export PNG
-              const dataUrl = canvas.toDataURL('image/png');
-              resolve(dataUrl);
+
+              // Icône + texte dans la bande noire
+              const whiteBottom = marginY + whiteHeight;
+              const bandTop = whiteBottom + 60;
+
+              const iconSize = 220;
+              const iconX = CARD_W / 2 - 260;
+              const iconY = bandTop + 40;
+
+              const icon = new Image();
+              icon.src = './assets/icon.png';
+              icon.onload = () => {
+                ctx.drawImage(icon, iconX, iconY, iconSize, iconSize);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.textAlign = 'left';
+                ctx.font = '64px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                const textY = iconY + iconSize / 2 + 22;
+                ctx.fillText('Tontonmoh', iconX + iconSize + 40, textY);
+
+                const dataUrl = canvas.toDataURL('image/png');
+                resolve(dataUrl);
+              };
+              icon.onerror = () => reject(new Error('icon.png introuvable'));
             };
-            logo.onerror = () => reject(new Error('Logo introuvable'));
+            logo.onerror = () => reject(new Error('logo.png introuvable'));
           };
           imgObj.onerror = () => reject(new Error('Image QR brute introuvable'));
+
           imgObj.src = qrImg.src || (qrImg.toDataURL && qrImg.toDataURL());
         }, 60);
       });
     }
 
-
-
-    // helper: rectangle arrondi
     function roundedRect(ctx, x, y, w, h, r) {
       ctx.beginPath();
       ctx.moveTo(x + r, y);
@@ -283,6 +255,8 @@
       ctx.quadraticCurveTo(x, y, x + r, y);
       ctx.closePath();
     }
+
+    main();
   </script>
 </body>
 </html>
