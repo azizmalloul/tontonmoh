@@ -73,106 +73,102 @@
   // --------- FONCTION QUI DESSINE LE STYLE "TONTONMOH" ----------
   function generateStyledQr(code) {
     return new Promise((resolve, reject) => {
-      // 1) Générer le QR brut dans un div caché
-      qrRaw.innerHTML = '';
-      const qr = new QRCode(qrRaw, {
+      const qrRawEl = document.getElementById('qrBox'); // ou l’élément que tu utilises
+      qrRawEl.innerHTML = '';
+      const qr = new QRCode(qrRawEl, {
         text: code,
         width: 480,
         height: 480,
-        correctLevel: QRCode.CorrectLevel.H,  // plus de robustesse pour le logo
+        correctLevel: QRCode.CorrectLevel.H,
       });
-
-      // qrcodejs rend une <img> ou un <canvas> → on attend un peu
+  
       setTimeout(() => {
-        const qrImg = qrRaw.querySelector('img') || qrRaw.querySelector('canvas');
+        const qrImg = qrRawEl.querySelector('img') || qrRawEl.querySelector('canvas');
         if (!qrImg) {
           reject(new Error('QR brut introuvable'));
           return;
         }
-
-        // 2) Préparer le canvas final (carte noire + blanche)
-        const CARD_W = 800;
-        const CARD_H = 1000;
+  
+        const CARD_W = 1024;
+        const CARD_H = 1280;
         const canvas = document.createElement('canvas');
         canvas.width  = CARD_W;
         canvas.height = CARD_H;
         const ctx = canvas.getContext('2d');
-
-        // fond noir (bord extérieur)
+  
         ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, CARD_W, CARD_H);
-
-        // carte blanche arrondie (comme ton exemple)
-        const margin = 40;
-        const radius = 80;
-        roundedRect(ctx, margin, margin, CARD_W - 2*margin, CARD_H - 2*margin, radius);
+  
+        const marginX = 64;
+        const marginY = 48;
+        const whiteHeight = 720;
         ctx.fillStyle = '#ffffff';
+        roundedRect(ctx, marginX, marginY, CARD_W - 2*marginX, whiteHeight, 72);
         ctx.fill();
-
-        // 3) dessiner le QR en grand au centre de la carte
-        const qrSize = 520;
+  
+        const qrSize = whiteHeight - 160;
         const qrX = (CARD_W - qrSize) / 2;
-        const qrY = margin + 80; // laisse un peu de marge en haut
-
-        // on dessine l'image du QR dans le canvas
+        const qrY = marginY + (whiteHeight - qrSize) / 2;
+  
         const qrCanvas = document.createElement('canvas');
         qrCanvas.width = qrSize;
         qrCanvas.height = qrSize;
         const qrCtx = qrCanvas.getContext('2d');
-
+  
         const imgObj = new Image();
         imgObj.onload = () => {
-          // QR
           qrCtx.drawImage(imgObj, 0, 0, qrSize, qrSize);
           ctx.drawImage(qrCanvas, qrX, qrY);
-
-          // 4) logo au centre du QR (avec un fond blanc rond)
+  
           const logo = new Image();
           logo.src = './assets/logo.png';
           logo.onload = () => {
-            const logoSize = qrSize * 0.28; // ~28% du QR
+            const logoSize = qrSize * 0.28;
             const logoX = CARD_W/2 - logoSize/2;
             const logoY = qrY + qrSize/2 - logoSize/2;
-
-            // cercle blanc derrière le logo pour lisibilité
+  
             ctx.save();
             ctx.beginPath();
-            ctx.arc(CARD_W/2, qrY + qrSize/2, logoSize/2 + 10, 0, Math.PI * 2);
+            ctx.arc(CARD_W/2, qrY + qrSize/2, logoSize/2 + 10, 0, Math.PI*2);
             ctx.closePath();
             ctx.fillStyle = '#ffffff';
             ctx.fill();
-
-            // logo lui-même
+  
             ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
             ctx.restore();
-
-            // 5) partie basse : icône smartphone + texte "Tontonmoh"
-            const bottomY = qrY + qrSize + 120;
-
+  
+            const bandTop = marginY + whiteHeight + 120;
+            const iconRadius = 72;
+            const iconX = CARD_W/2 - 150;
+            const iconY = bandTop;
+  
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(iconX, iconY, iconRadius, 0, Math.PI*2);
+            ctx.closePath();
+            ctx.fill();
+  
             ctx.fillStyle = '#000000';
             ctx.textAlign = 'center';
-
-            // icône téléphone en gros (emoji)
-            ctx.font = '64px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-            ctx.fillText('📱', CARD_W / 2, bottomY);
-
-            // label "Tontonmoh"
-            ctx.font = '40px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-            ctx.fillText('Tontonmoh', CARD_W / 2, bottomY + 60);
-
-            // 6) on renvoie le dataURL final
+            ctx.font = '72px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+            ctx.fillText('📱', iconX, iconY + 26);
+  
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'left';
+            ctx.font = '52px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+            ctx.fillText('Tontonmoh', iconX + iconRadius + 32, iconY + 18);
+  
             const dataUrl = canvas.toDataURL('image/png');
             resolve(dataUrl);
           };
-
           logo.onerror = () => reject(new Error('Logo introuvable'));
         };
-
         imgObj.onerror = () => reject(new Error('Image QR brute introuvable'));
-        imgObj.src = qrImg.src || qrImg.toDataURL && qrImg.toDataURL();
-      }, 50);
+        imgObj.src = qrImg.src || (qrImg.toDataURL && qrImg.toDataURL());
+      }, 60);
     });
   }
+
 
   // helper: dessiner un rectangle arrondi
   function roundedRect(ctx, x, y, w, h, r) {
