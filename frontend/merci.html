@@ -54,9 +54,13 @@
     } else {
       // Texte + lien "Mon compte"
       codeText.textContent = 'Code : ' + code;
+      // on cache ce texte HTML (le code sera dessiné dans la carte)
+      codeText.style.display = 'none';
+      
       const account = new URL('/mon-compte.html', location.origin);
       account.searchParams.set('code', code);
       accountLink.href = account.toString();
+
 
       // Génération du QR stylé
       generateStyledQr(code)
@@ -193,13 +197,26 @@
         ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
 
 
-        // 4) Icône téléphone + texte Tontonmoh dans la bande noire
+        // 4) Code au milieu puis icône téléphone + texte Tontonmoh dans la bande noire
         const whiteBottom = marginY + whiteHeight;
-        const bandTop = whiteBottom + 60;
-
+        
+        // --- TEXTE "Code : XXXXX" entre le QR et l'icône ---
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        // taille du texte du code (64px → plus grand / plus petit)
+        ctx.font = '64px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        
+        // position verticale du code : augmente 80 → descend, diminue 80 → monte
+        const codeY = whiteBottom + 80;
+        ctx.fillText('Code : ' + code, CARD_W / 2, codeY);
+        
+        // --- Icône + "Tontonmoh" plus bas ---
+        const bandTop = codeY + 80; // décale l'icône sous le code
+        
         const iconSize = 250;           // taille de icon.png dessiné
         const iconX = CARD_W / 2 - 500; // décale l'icône vers la gauche / droite
         const iconY = bandTop + 40;
+
 
         const icon = new Image();
         icon.src = './assets/icon.png';
