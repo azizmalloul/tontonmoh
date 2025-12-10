@@ -169,7 +169,13 @@ const adminMsg     = document.getElementById('adminMsg');
 const adminTxList  = document.getElementById('adminTxList');
 
 /* ====== UTILS ====== */
-function euros(c){ return (Number(c||0)/100).toFixed(2) + ' €'; }
+function euros(c){
+  return (Number(c||0)/100)
+    .toFixed(2)          // 12.50
+    .replace('.', ',')   // 12,50
+    + ' €';
+}
+
 function validAmount(){
   const v = parseFloat(String(amountInput.value).replace(',','.'));
   return (v && v>0) ? Math.round(v*100) : 0;
@@ -339,11 +345,16 @@ async function startScanner(){
         const cli = await fetchClientByCode(code);
         showClient(cli);
         showOverlay(`${cli.first_name||''} ${cli.last_name||''}`.trim() || 'Client');
-
+        
         const amount_cents = validAmount();
         const res = await postTransaction(cli, amount_cents);
         clientBalance.textContent = euros(res.balance_cents);
         clientGifts.textContent   = res.gifts_count;
+        
+        // >>> nouveau message dans la box caméra <<<
+        const fullName = `${cli.first_name||''} ${cli.last_name||''}`.trim() || 'ce client';
+        showOverlay(`${euros(amount_cents)} ont été ajoutés au compte de ${fullName}`);
+        
         formMsg.textContent = 'Achat enregistré ✔️';
         formMsg.className = 'success';
         scanStatus.textContent = 'Prêt pour un autre QR…';
@@ -368,6 +379,11 @@ async function startScanner(){
               const res2 = await postTransaction(cli2, amount_cents2);
               clientBalance.textContent = euros(res2.balance_cents);
               clientGifts.textContent   = res2.gifts_count;
+              
+              // >>> nouveau message dans la box caméra <<<
+              const fullName2 = `${cli2.first_name||''} ${cli2.last_name||''}`.trim() || 'ce client';
+              showOverlay(`${euros(amount_cents2)} ont été ajoutés au compte de ${fullName2}`);
+              
               formMsg.textContent = 'Achat enregistré ✔️';
               formMsg.className = 'success';
               scanStatus.textContent = 'Prêt pour un autre QR…';
@@ -457,10 +473,15 @@ manualBtn.addEventListener('click', async ()=>{
     const cli = await fetchClientByCode(code);
     showClient(cli);
     showOverlay(`${cli.first_name||''} ${cli.last_name||''}`.trim() || 'Client');
-
+    
     const r = await postTransaction(cli, amount_cents);
     clientBalance.textContent = euros(r.balance_cents);
     clientGifts.textContent   = r.gifts_count;
+    
+    // >>> nouveau message dans la box caméra <<<
+    const fullName = `${cli.first_name||''} ${cli.last_name||''}`.trim() || 'ce client';
+    showOverlay(`${euros(amount_cents)} ont été ajoutés au compte de ${fullName}`);
+    
     formMsg.textContent = 'Achat enregistré ✔️';
     formMsg.className = 'success';
     scanStatus.textContent = 'Vous pouvez scanner un autre QR…';
