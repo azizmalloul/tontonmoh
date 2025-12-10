@@ -168,22 +168,30 @@
 
       ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
 
-      // 3) Logo au centre du QR
+      // 3) Logo au centre du QR, sur un carré blanc
       const logo = new Image();
       logo.src = './assets/logo.png';
       logo.onload = () => {
-        const logoSize = qrSize * 0.27;
+        const logoSize = qrSize * 0.27;          // taille réelle du logo
+        const padding  = 20;                     // marge blanche autour du logo
+        const bgSize   = logoSize + padding * 2; // taille du carré blanc
+      
+        // Position du carré blanc (centré dans le QR)
+        const bgX = CARD_W / 2 - bgSize / 2;
+        const bgY = qrY + qrSize / 2 - bgSize / 2;
+      
+        // Position du logo (centré dans le carré)
         const logoX = CARD_W / 2 - logoSize / 2;
         const logoY = qrY + qrSize / 2 - logoSize / 2;
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(CARD_W / 2, qrY + qrSize / 2, logoSize / 2 + 10, 0, Math.PI * 2);
-        ctx.closePath();
+      
+        // Fond carré blanc (coins légèrement arrondis)
         ctx.fillStyle = '#ffffff';
+        roundedRect(ctx, bgX, bgY, bgSize, bgSize, 24); // 24 = rayon des coins
         ctx.fill();
+      
+        // Logo par-dessus
         ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
-        ctx.restore();
+
 
         // 4) Icône téléphone + texte Tontonmoh dans la bande noire
         const whiteBottom = marginY + whiteHeight;
