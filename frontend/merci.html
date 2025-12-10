@@ -215,7 +215,7 @@
         
         const iconSize = 250;           // taille de icon.png dessiné
         const iconX = CARD_W / 2 - 550; // décale l'icône vers la gauche / droite
-        const iconY = bandTop + 40;
+        const iconY = bandTop + 35;
 
 
         const icon = new Image();
@@ -235,7 +235,7 @@
           //   - change "+ 40" : plus grand → texte PLUS À DROITE
           //                       plus petit → texte PLUS À GAUCHE
           const textY = iconY + iconSize / 2 + 40;
-          ctx.fillText('Tontonmoh', iconX + iconSize + 45, textY);
+          ctx.fillText('Tontonmoh', iconX + iconSize + 50, textY);
 
           const dataUrl = canvas.toDataURL('image/png');
           resolve(dataUrl);
