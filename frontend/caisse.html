@@ -353,7 +353,7 @@ async function startScanner(){
         
         // >>> nouveau message dans la box caméra <<<
         const fullName = `${cli.first_name||''} ${cli.last_name||''}`.trim() || 'ce client';
-        showOverlay(`${euros(amount_cents)} ont été ajoutés au compte de ${fullName}`);
+        showOverlay(`${euros(amount_cents)}\nont été ajoutés\nau compte de ${fullName}`);
         
         formMsg.textContent = 'Achat enregistré ✔️';
         formMsg.className = 'success';
@@ -480,7 +480,7 @@ manualBtn.addEventListener('click', async ()=>{
     
     // >>> nouveau message dans la box caméra <<<
     const fullName = `${cli.first_name||''} ${cli.last_name||''}`.trim() || 'ce client';
-    showOverlay(`${euros(amount_cents)} ont été ajoutés au compte de ${fullName}`);
+    showOverlay(`${euros(amount_cents)}\nont été ajoutés\nau compte de ${fullName}`);
     
     formMsg.textContent = 'Achat enregistré ✔️';
     formMsg.className = 'success';
