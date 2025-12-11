@@ -110,10 +110,11 @@ input:focus{
   margin:12px 0;
 }
 
-/* --- QR centré et style "carte" (page merci) --- */
+/* --- QR centré et style "carte" (merci + mon-compte) --- */
 .qr-wrapper{
-  width:min(340px, 90vw);
-  margin:16px auto 8px;
+  width:100%;             /* prend toute la largeur disponible de la carte */
+  max-width:340px;        /* mais jamais plus large que 340px */
+  margin:16px auto 8px;   /* centré dans la carte */
   padding:16px;
   background:#000;
   border-radius:24px;
@@ -121,6 +122,7 @@ input:focus{
   justify-content:center;
   align-items:center;
 }
+
 
 .qr-wrapper img{
   display:block;
