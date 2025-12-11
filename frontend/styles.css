@@ -188,7 +188,7 @@ input:focus{
 .overlay-name{
   position:absolute;
   left:50%;
-  top:50%;
+  top:40%; /* pour monter ou descendre la box noir comportant le texte dans la camera apres scan
   transform:translate(-50%, -50%);  /* centre au milieu de la vidéo */
 
   width:80%;              /* ⬅️ largeur de la box : 80% de la vidéo */
