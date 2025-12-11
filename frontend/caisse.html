@@ -184,7 +184,7 @@ function showOverlay(text){
   overlayName.textContent = text;
   overlayName.classList.add('show');
   clearTimeout(showOverlay._t);
-  showOverlay._t = setTimeout(()=>overlayName.classList.remove('show'), 3000);
+  showOverlay._t = setTimeout(()=>overlayName.classList.remove('show'), 4000);
 }
 async function listCameras(){
   const list = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
