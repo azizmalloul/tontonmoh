@@ -34,7 +34,7 @@ form.addEventListener('submit', async (e) => {
 
   // Doit être exactement 10 chiffres et commencer par 0 (06…, 07…, 04…, etc.)
   if (!/^0[1-9][0-9]{8}$/.test(phoneDigits)) {
-    msg.textContent = 'Merci de saisir un numéro de téléphone français à 10 chiffres (ex : 0612345678).';
+    msg.textContent = 'Merci de saisir un numéro de téléphone à 10 chiffres';
     msg.className = 'error';
     phoneInput.focus();
     return;
