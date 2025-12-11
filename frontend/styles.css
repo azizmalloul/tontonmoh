@@ -188,12 +188,12 @@ input:focus{
 .overlay-name{
   position:absolute;
   left:50%;
-  top:40%; /* pour monter ou descendre la box noir comportant le texte dans la camera apres scan
-  transform:translate(-50%, -50%);  /* centre au milieu de la vidéo */
+  top:40%;                       /* centre légèrement au-dessus du milieu */
+  transform:translate(-50%, -50%);/* centre par rapport au centre de la box */
 
-  width:80%;              /* ⬅️ largeur de la box : 80% de la vidéo */
+  width:80%;
   max-width:80%;
-  
+
   background:rgba(0,0,0,.72);
   color:#fff;
   padding:12px 18px;
@@ -204,13 +204,14 @@ input:focus{
   display:none;
   z-index:2;
 
-  /* pour gérer les sauts de ligne qu'on mettra en JS */
-  white-space:pre-line;
+  white-space:pre-line;          /* respecte les \n du JS */
   font-size:1rem;
   line-height:1.3;
 }
 
 .overlay-name.show{
-  display:block;
+  display:block;                 /* on l'affiche, sans animation */
 }
+
+
 
