@@ -81,7 +81,7 @@
                 <!-- zone cachée pour le QR brut -->
                 <div id="qrRaw" style="display:none"></div>
               </div>
-              <p id="codeText">Code : <b>${cli.code_public}</b></p>
+              <p id="codeText" style="display:none">Code : <b>${cli.code_public}</b></p>
               <p><a id="dlQR" class="btn" href="#" download="${cli.code_public}.png" style="display:none">Télécharger le QR</a></p>
             </div>
           </div>
@@ -137,110 +137,158 @@
       }
     }
 
-    // --------- même fonction que dans merci.html ---------
+    // --------- copie du style "carte" de merci.html ---------
     function generateStyledQr(code, qrRawEl) {
       return new Promise((resolve, reject) => {
         qrRawEl.innerHTML = '';
-
-        // QR brut
-        const qr = new QRCode(qrRawEl, {
+    
+        // 1) QR brut
+        new QRCode(qrRawEl, {
           text: code,
           width: 480,
           height: 480,
           correctLevel: QRCode.CorrectLevel.H,
         });
-
-        setTimeout(() => {
-          const qrImg = qrRawEl.querySelector('img') || qrRawEl.querySelector('canvas');
+    
+        let tries = 0;
+        const MAX_TRIES = 25; // 25 * 100 ms = 2,5 s max
+    
+        function waitForQr() {
+          const qrImg = qrRawEl.querySelector('img, canvas');
+    
+          // pas encore généré → on attend
           if (!qrImg) {
-            reject(new Error('QR brut introuvable'));
+            if (tries++ > MAX_TRIES) {
+              reject(new Error('QR brut introuvable'));
+              return;
+            }
+            setTimeout(waitForQr, 100);
             return;
           }
-
-          const CARD_W = 1200;
-          const CARD_H = 1700;
-          const canvas = document.createElement('canvas');
-          canvas.width  = CARD_W;
-          canvas.height = CARD_H;
-          const ctx = canvas.getContext('2d');
-
-          // Fond noir
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(0, 0, CARD_W, CARD_H);
-
-          // Bloc blanc en haut (QR uniquement)
-          const marginX = 70;
-          const marginY = 80;
-          const whiteHeight = 980;
-
-          ctx.fillStyle = '#ffffff';
-          roundedRect(ctx, marginX, marginY, CARD_W - 2 * marginX, whiteHeight, 72);
-          ctx.fill();
-
-          // QR centré
-          const qrSize = whiteHeight - 220;
-          const qrX = (CARD_W - qrSize) / 2;
-          const qrY = marginY + (whiteHeight - qrSize) / 2;
-
-          const qrCanvas = document.createElement('canvas');
-          qrCanvas.width = qrSize;
-          qrCanvas.height = qrSize;
-          const qrCtx = qrCanvas.getContext('2d');
-
+    
+          // Récupérer la source du QR (img ou canvas)
+          let src = '';
+          if (qrImg.tagName === 'IMG') {
+            src = qrImg.src || '';
+          } else if (qrImg.tagName === 'CANVAS') {
+            try {
+              src = qrImg.toDataURL('image/png');
+            } catch (e) {
+              console.error('toDataURL error', e);
+            }
+          }
+    
+          if (!src) {
+            if (tries++ > MAX_TRIES) {
+              reject(new Error('Source QR invalide'));
+              return;
+            }
+            setTimeout(waitForQr, 100);
+            return;
+          }
+    
+          // Quand on a la source, on continue avec le dessin de la carte
           const imgObj = new Image();
-          imgObj.onload = () => {
-            qrCtx.drawImage(imgObj, 0, 0, qrSize, qrSize);
-            ctx.drawImage(qrCanvas, qrX, qrY);
-
-            // Logo au centre 
-            const logo = new Image();
-            logo.src = './assets/logo.png';
-            logo.onload = () => {
-              const logoSize = qrSize * 0.27;
-              const logoX = CARD_W / 2 - logoSize / 2;
-              const logoY = qrY + qrSize / 2 - logoSize / 2;
-
-              ctx.save();
-              ctx.beginPath();
-              ctx.arc(CARD_W / 2, qrY + qrSize / 2, logoSize / 2 + 10, 0, Math.PI * 2);
-              ctx.closePath();
-              ctx.fillStyle = '#ffffff';
-              ctx.fill();
-              ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
-              ctx.restore();
-
-              // Icône + texte dans la bande noire
-              const whiteBottom = marginY + whiteHeight;
-              const bandTop = whiteBottom + 60;
-
-              const iconSize = 220;
-              const iconX = CARD_W / 2 - 260;
-              const iconY = bandTop + 40;
-
-              const icon = new Image();
-              icon.src = './assets/icon.png';
-              icon.onload = () => {
-                ctx.drawImage(icon, iconX, iconY, iconSize, iconSize);
-
-                ctx.fillStyle = '#ffffff';
-                ctx.textAlign = 'left';
-                ctx.font = '64px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                const textY = iconY + iconSize / 2 + 22;
-                ctx.fillText('Tontonmoh', iconX + iconSize + 40, textY);
-
-                const dataUrl = canvas.toDataURL('image/png');
-                resolve(dataUrl);
-              };
-              icon.onerror = () => reject(new Error('icon.png introuvable'));
-            };
-            logo.onerror = () => reject(new Error('logo.png introuvable'));
-          };
+          imgObj.onload  = () => drawWalletCard(imgObj, code, resolve, reject);
           imgObj.onerror = () => reject(new Error('Image QR brute introuvable'));
-
-          imgObj.src = qrImg.src || (qrImg.toDataURL && qrImg.toDataURL());
-        }, 60);
+          imgObj.src = src;
+        }
+    
+        waitForQr();
       });
     }
+    
+    // Dessine la carte "façon Apple Wallet" (même que merci.html)
+    function drawWalletCard(qrImage, code, resolve, reject) {
+      const CARD_W = 1200;
+      const CARD_H = 1700;
+      const canvas = document.createElement('canvas');
+      canvas.width  = CARD_W;
+      canvas.height = CARD_H;
+      const ctx = canvas.getContext('2d');
+    
+      // Fond noir
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, CARD_W, CARD_H);
+    
+      // Bloc blanc en haut (pour le QR seulement)
+      const marginX = 55;
+      const marginY = 60;
+      const whiteHeight = 1100; // hauteur du bloc blanc
+    
+      ctx.fillStyle = '#ffffff';
+      roundedRect(ctx, marginX, marginY, CARD_W - 2 * marginX, whiteHeight, 72);
+      ctx.fill();
+    
+      // QR centré dans le bloc blanc
+      const qrSize = whiteHeight - 220;
+      const qrX = (CARD_W - qrSize) / 2;
+      const qrY = marginY + (whiteHeight - qrSize) / 2;
+    
+      ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
+    
+      // 3) Logo au centre du QR, sur un carré blanc
+      const logo = new Image();
+      logo.src = './assets/logo.png';
+      logo.onload = () => {
+        const logoSize = qrSize * 0.27;          // taille réelle du logo
+        const padding  = 20;                     // marge blanche autour du logo
+        const bgSize   = logoSize + padding * 2; // taille du carré blanc
+      
+        // Position du carré blanc (centré dans le QR)
+        const bgX = CARD_W / 2 - bgSize / 2;
+        const bgY = qrY + qrSize / 2 - bgSize / 2;
+      
+        // Position du logo (centré dans le carré)
+        const logoX = CARD_W / 2 - logoSize / 2;
+        const logoY = qrY + qrSize / 2 - logoSize / 2;
+      
+        // Fond carré blanc (coins légèrement arrondis)
+        ctx.fillStyle = '#ffffff';
+        roundedRect(ctx, bgX, bgY, bgSize, bgSize, 24); // 24 = rayon des coins
+        ctx.fill();
+      
+        // Logo par-dessus
+        ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
+    
+        // 4) Code au milieu puis icône téléphone + texte Tontonmoh dans la bande noire
+        const whiteBottom = marginY + whiteHeight;
+        
+        // --- TEXTE "Code : XXXXX" entre le QR et l'icône ---
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.font = '64px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        
+        const codeY = whiteBottom + 80;
+        ctx.fillText('Code : ' + code, CARD_W / 2, codeY);
+        
+        // --- Icône + "Tontonmoh" plus bas ---
+        const bandTop = codeY + 80; // décale l'icône sous le code
+        
+        const iconSize = 250;
+        const iconX = CARD_W / 2 - 550;
+        const iconY = bandTop + 30;
+    
+        const icon = new Image();
+        icon.src = './assets/icon.png';
+        icon.onload = () => {
+          ctx.drawImage(icon, iconX, iconY, iconSize, iconSize);
+    
+          ctx.fillStyle = '#ffffff';
+          ctx.textAlign = 'left';
+          ctx.font = '150px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    
+          const textY = iconY + iconSize / 2 + 40;
+          ctx.fillText('Tontonmoh', iconX + iconSize + 50, textY);
+    
+          const dataUrl = canvas.toDataURL('image/png');
+          resolve(dataUrl);
+        };
+        icon.onerror = () => reject(new Error('icon.png introuvable'));
+      };
+      logo.onerror = () => reject(new Error('logo.png introuvable'));
+    }
+
 
     function roundedRect(ctx, x, y, w, h, r) {
       ctx.beginPath();
