@@ -353,7 +353,11 @@ async function startScanner(){
         
         // >>> nouveau message dans la box caméra <<<
         const fullName = `${cli.first_name||''} ${cli.last_name||''}`.trim() || 'ce client';
-        showOverlay(`${euros(amount_cents)}\nont été ajoutés\nau compte de ${fullName}`);
+        showOverlay(
+          `${euros(amount_cents)}\n` +
+          `ont été ajoutés\n` +
+          `au compte de ${fullName}`
+        );
         
         formMsg.textContent = 'Achat enregistré ✔️';
         formMsg.className = 'success';
@@ -382,8 +386,12 @@ async function startScanner(){
               
               // >>> nouveau message dans la box caméra <<<
               const fullName2 = `${cli2.first_name||''} ${cli2.last_name||''}`.trim() || 'ce client';
-              showOverlay(`${euros(amount_cents2)} ont été ajoutés au compte de ${fullName2}`);
-              
+              showOverlay(
+                `${euros(amount_cents2)}\n` +
+                `ont été ajoutés\n` +
+                `au compte de ${fullName2}`
+              );
+                            
               formMsg.textContent = 'Achat enregistré ✔️';
               formMsg.className = 'success';
               scanStatus.textContent = 'Prêt pour un autre QR…';
@@ -480,7 +488,11 @@ manualBtn.addEventListener('click', async ()=>{
     
     // >>> nouveau message dans la box caméra <<<
     const fullName = `${cli.first_name||''} ${cli.last_name||''}`.trim() || 'ce client';
-    showOverlay(`${euros(amount_cents)}\nont été ajoutés\nau compte de ${fullName}`);
+    showOverlay(
+      `${euros(amount_cents)}\n` +
+      `ont été ajoutés\n` +
+      `au compte de ${fullName}`
+    );
     
     formMsg.textContent = 'Achat enregistré ✔️';
     formMsg.className = 'success';
