@@ -1,5 +1,7 @@
 const form = document.getElementById('signupForm');
 const msg  = document.getElementById('formMsg');
+const phoneInput = document.getElementById('phone');
+const emailInput = document.getElementById('email');
 
 const API = 'https://tontonmoh-api.azizekarma.workers.dev';
 
@@ -26,27 +28,61 @@ form.addEventListener('submit', async (e) => {
 
   const data = Object.fromEntries(new FormData(form).entries());
 
-  const payload = {
-    id: 'cli_' + Math.random().toString(36).slice(2, 6).padStart(4, '0'),
-    phone_e164: toE164FR(data.phone),
-    email:      (data.email || '').trim(),
-    first_name: (data.first_name || '').trim(),
-    last_name:  (data.last_name || '').trim(),
-    opt_in:     !!data.opt_in,
+  // --- 1) Nettoyage & vérif téléphone ---
+  const phoneRaw    = data.phone || '';
+  const phoneDigits = phoneRaw.replace(/\D/g, ''); // seulement les chiffres
 
-    // décommente si ton API exige code_public à l’insert
-    // code_public: makeCodePublic(),
-  };
+  // Doit être exactement 10 chiffres et commencer par 0 (06…, 07…, 04…, etc.)
+  if (!/^0[1-9][0-9]{8}$/.test(phoneDigits)) {
+    msg.textContent = 'Merci de saisir un numéro de téléphone français à 10 chiffres (ex : 0612345678).';
+    msg.className = 'error';
+    phoneInput.focus();
+    return;
+  }
 
-  if (!payload.first_name || !payload.phone_e164 || !payload.email) {
-    msg.textContent = 'Merci de remplir tous les champs obligatoires.';
+  const phoneE164 = toE164FR(phoneDigits);
+  if (!phoneE164) {
+    msg.textContent = 'Numéro de téléphone invalide.';
+    msg.className = 'error';
+    phoneInput.focus();
+    return;
+  }
+
+  // --- 2) Vérif email ---
+  const email = (data.email || '').trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailRegex.test(email)) {
+    msg.textContent = 'Merci de saisir une adresse e-mail valide (ex : vous@exemple.fr).';
+    msg.className = 'error';
+    emailInput.focus();
+    return;
+  }
+
+  // --- 3) Vérif prénom ---
+  const firstName = (data.first_name || '').trim();
+  const lastName  = (data.last_name  || '').trim();
+
+  if (!firstName) {
+    msg.textContent = 'Merci de saisir au moins votre prénom.';
     msg.className = 'error';
     return;
   }
 
+  // --- 4) Payload final pour l’API ---
+  const payload = {
+    id: 'cli_' + Math.random().toString(36).slice(2, 6).padStart(4, '0'),
+    phone_e164: phoneE164,
+    email,
+    first_name: firstName,
+    last_name:  lastName,
+    opt_in:     !!data.opt_in,
+    // code_public: makeCodePublic(),
+  };
+
   try {
     console.log('[signup] payload envoyé à /api/clients:', payload);
-    // 👉 ici on appelle la bonne route :
+
     const res = await fetch(`${API}/api/clients`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -61,9 +97,7 @@ form.addEventListener('submit', async (e) => {
       throw new Error(`API ${res.status}: ${txt}`);
     }
 
-    // si le Worker renvoie { code_public } on l’utilise, sinon on retombe sur l’id
     const code = j.code_public || payload.id;
-
     window.location.href = `/merci.html?code=${encodeURIComponent(code)}`;
   } catch (err) {
     msg.textContent = err.message;
