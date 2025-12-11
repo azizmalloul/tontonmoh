@@ -354,9 +354,9 @@ async function startScanner(){
         // >>> nouveau message dans la box caméra <<<
         const fullName = `${cli.first_name||''} ${cli.last_name||''}`.trim() || 'ce client';
         showOverlay(
-          `${euros(amount_cents)}\n` +
+          `💶 ${euros(amount_cents)}\n` +
           `ont été ajoutés\n` +
-          `au compte de ${fullName}`
+          `au compte de ${fullName} ✔️`
         );
         
         formMsg.textContent = 'Achat enregistré ✔️';
@@ -387,9 +387,9 @@ async function startScanner(){
               // >>> nouveau message dans la box caméra <<<
               const fullName2 = `${cli2.first_name||''} ${cli2.last_name||''}`.trim() || 'ce client';
               showOverlay(
-                `${euros(amount_cents2)}\n` +
+                `💶 ${euros(amount_cents2)}\n` +
                 `ont été ajoutés\n` +
-                `au compte de ${fullName2}`
+                `au compte de ${fullName2} ✔️`
               );
                             
               formMsg.textContent = 'Achat enregistré ✔️';
@@ -489,9 +489,9 @@ manualBtn.addEventListener('click', async ()=>{
     // >>> nouveau message dans la box caméra <<<
     const fullName = `${cli.first_name||''} ${cli.last_name||''}`.trim() || 'ce client';
     showOverlay(
-      `${euros(amount_cents)}\n` +
+      `💶 ${euros(amount_cents)}\n` +
       `ont été ajoutés\n` +
-      `au compte de ${fullName}`
+      `au compte de ${fullName} ✔️`
     );
     
     formMsg.textContent = 'Achat enregistré ✔️';
