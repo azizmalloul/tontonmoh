@@ -212,11 +212,5 @@ input:focus{
 
 .overlay-name.show{
   display:block;
-  animation:overlay-pop 1.2s ease;
 }
 
-@keyframes overlay-pop{
-  0%{transform:translate(-50%,-50%) scale(.9);opacity:0}
-  15%{transform:translate(-50%,-50%) scale(1.02);opacity:1}
-  100%{transform:translate(-50%,-50%) scale(1);opacity:1}
-}
