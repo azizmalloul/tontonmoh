@@ -26,13 +26,29 @@
       </div>
 
       <div class="grid">
-        <label>Téléphone (FR)*
-          <input required type="tel" name="phone" inputmode="tel" placeholder="06 12 34 56 78" />
+        <label for="phone">Téléphone (FR)*
+          <input
+            id="phone"
+            required
+            type="tel"
+            name="phone"
+            inputmode="numeric"
+            placeholder="06 12 34 56 78"
+            pattern="^0[1-9][0-9]{8}$"
+            minlength="10"
+            maxlength="14"
+          />
           <small>Servira à sécuriser votre accès.</small>
         </label>
-        <label>Email*
-          <input required type="email" name="email" placeholder="vous@exemple.fr" />
-        </label>
+        <label for="email">Email*
+        <input
+          id="email"
+          required
+          type="email"
+          name="email"
+          placeholder="vous@exemple.fr"
+        />
+      </label>
       </div>
 
       <label class="checkbox">
