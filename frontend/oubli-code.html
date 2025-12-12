@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>J'ai oublié mon code — Tonton Moh</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="container center">
+    <img src="./assets/logo.png" alt="Chez Tonton Moh" class="logo" />
+    <h1>Retrouver mon code fidélité</h1>
+    <p class="muted">Saisissez l'adresse email utilisée lors de l'inscription.</p>
+  </header>
+
+  <main class="container card">
+    <form id="forgotForm" class="kv">
+      <label for="email">Email*</label>
+      <input id="email" name="email" type="email" required placeholder="vous@exemple.fr" />
+      <button type="submit" class="btn">M'envoyer mon code par email</button>
+      <p id="forgotMsg" class="muted"></p>
+    </form>
+  </main>
+
+  <footer class="container muted">
+    <p>© 2025 Chez Tonton Moh — Fruits & Légumes, Villeurbanne</p>
+  </footer>
+
+  <script src="./oubli-code.js"></script>
+</body>
+</html>
