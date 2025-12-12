@@ -15,8 +15,18 @@
 
   <main class="container card">
     <form id="forgotForm" class="kv">
+      <label for="first_name">Prénom*</label>
+      <input id="first_name" name="first_name" type="text" required placeholder="Ex: Aziz" />
+    
+      <label for="last_name">Nom*</label>
+      <input id="last_name" name="last_name" type="text" required placeholder="Ex: Malloul" />
+    
+      <label for="phone">Téléphone*</label>
+      <input id="phone" name="phone" type="tel" required placeholder="Ex: 07 65 61 72 49" />
+    
       <label for="email">Email*</label>
       <input id="email" name="email" type="email" required placeholder="vous@exemple.fr" />
+    
       <button type="submit" class="btn">M'envoyer mon code par email</button>
       <p id="forgotMsg" class="muted"></p>
     </form>
