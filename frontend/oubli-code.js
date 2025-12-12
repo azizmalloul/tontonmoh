@@ -25,15 +25,22 @@ form.addEventListener('submit', async (e) => {
 
   try {
     msg.textContent = 'Envoi en cours…';
-    const res = await fetch(`${API}/api/forgot-code`, {
+
+    const res = await fetch(`${API}/api/send-code`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
     });
 
-    // On ne détaille pas s'il existe ou pas, c'est volontaire
-    msg.textContent = 'Si un compte existe avec cet email, un message vient de vous être envoyé.';
+    // On reste volontairement vague (anti-enumération)
+    msg.textContent = "Si un compte existe avec cet email, un message vient de vous être envoyé.";
     msg.className = 'success';
+
+    // Optionnel : si tu veux loguer les erreurs côté console
+    if (!res.ok) {
+      const txt = await res.text();
+      console.warn('API send-code error:', res.status, txt);
+    }
 
   } catch (err) {
     console.error(err);
