@@ -1,50 +1,62 @@
-const API = 'https://tontonmoh-api.azizekarma.workers.dev';
+const API = "https://tontonmoh-api.azizekarma.workers.dev";
 
-const form = document.getElementById('forgotForm');
-const emailInput = document.getElementById('email');
-const msg = document.getElementById('forgotMsg');
+const form = document.getElementById("forgotForm");
+const msg = document.getElementById("forgotMsg");
+
+const firstNameInput = document.getElementById("first_name");
+const lastNameInput  = document.getElementById("last_name");
+const phoneInput     = document.getElementById("phone");
+const emailInput     = document.getElementById("email");
 
 function isValidEmail(email) {
-  email = (email || '').trim();
+  email = (email || "").trim();
   const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return re.test(email);
 }
 
-form.addEventListener('submit', async (e) => {
+form.addEventListener("submit", async (e) => {
   e.preventDefault();
-  msg.textContent = '';
-  msg.className = 'muted';
+  msg.textContent = "";
+  msg.className = "muted";
 
-  const email = emailInput.value.trim();
+  const first_name = firstNameInput.value.trim();
+  const last_name  = lastNameInput.value.trim();
+  const phone      = phoneInput.value.trim();
+  const email      = emailInput.value.trim().toLowerCase();
+
+  if (!first_name || !last_name || !phone || !email) {
+    msg.textContent = "Merci de remplir tous les champs.";
+    msg.className = "error";
+    return;
+  }
 
   if (!isValidEmail(email)) {
-    msg.textContent = 'Merci de saisir un email valide.';
-    msg.className = 'error';
+    msg.textContent = "Merci de saisir un email valide.";
+    msg.className = "error";
     return;
   }
 
   try {
-    msg.textContent = 'Envoi en cours…';
+    msg.textContent = "Envoi en cours…";
 
     const res = await fetch(`${API}/api/send-code`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ first_name, last_name, phone, email }),
     });
 
-    // On reste volontairement vague (anti-enumération)
-    msg.textContent = "Si un compte existe avec cet email, un message vient de vous être envoyé.";
-    msg.className = 'success';
+    // Anti-enumération : on reste volontairement vague
+    msg.textContent =
+      "Si les informations correspondent à un compte, un email vient d’être envoyé.";
+    msg.className = "success";
 
-    // Optionnel : si tu veux loguer les erreurs côté console
     if (!res.ok) {
       const txt = await res.text();
-      console.warn('API send-code error:', res.status, txt);
+      console.warn("API send-code error:", res.status, txt);
     }
-
   } catch (err) {
     console.error(err);
-    msg.textContent = 'Erreur lors de l’envoi. Réessayez plus tard.';
-    msg.className = 'error';
+    msg.textContent = "Erreur lors de l’envoi. Réessayez plus tard.";
+    msg.className = "error";
   }
 });
