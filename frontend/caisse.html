@@ -215,10 +215,9 @@ async function listCameras(){
   return list;
 }
 function pickRearCamera(devices){
-  if (currentDeviceId && devices.some(d=>d.deviceId===currentDeviceId)) return currentDeviceId;
   const re = /(back|arrière|rear|environment)/i;
-  const cand = devices.find(d=>re.test(d.label));
-  return (cand?.deviceId) || (devices[devices.length-1]||devices[0])?.deviceId || null;
+  const cand = devices.find(d => re.test(d.label));
+  return cand?.deviceId || devices[devices.length - 1]?.deviceId || devices[0]?.deviceId || null;
 }
 async function warmUpCameraPermission(){
   try { const s = await navigator.mediaDevices.getUserMedia({ video:true, audio:false }); s.getTracks().forEach(t=>t.stop()); } catch(_) {}
@@ -501,7 +500,7 @@ switchBtn.addEventListener('click', async () => {
     } catch(_) {}
 
     // petit délai pour laisser le navigateur libérer la caméra
-    await new Promise(r => setTimeout(r, 80));
+    await new Promise(r => setTimeout(r, 40));
 
     // ✅ relance sans repick arrière + sans retoucher l’UI
     await startScanner({ forceDevice: true, keepUI: true });
