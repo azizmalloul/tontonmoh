@@ -166,11 +166,12 @@ input:focus{
 }
 
 #scanBox{
-  position:relative;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:.75rem;
+  position: relative;
+  width: 100%;
+  max-width: 520px;   /* optionnel */
+  height: 260px;      /* ✅ diminue ici (Y) */
+  overflow: hidden;
+  border-radius: 16px; /* optionnel */
 }
 
 .row{
