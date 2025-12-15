@@ -233,7 +233,7 @@ async function listCameras(){
 }
 function pickRearCamera(devices){
   const re = /(back|arrière|rear|environment)/i;
-  const cand = devices.find(d => re.test(d.label));
+  const cand = devices.find(d => re.test(d.label || ''));
   return cand?.deviceId || devices[devices.length - 1]?.deviceId || devices[0]?.deviceId || null;
 }
 async function warmUpCameraPermission(){
@@ -523,7 +523,7 @@ switchBtn.addEventListener('click', async () => {
     if (currentDeviceId) localStorage.setItem(LS_CAM_ID, currentDeviceId);
 
     // petit délai
-    await new Promise(r => setTimeout(r, 40));
+    await new Promise(r => setTimeout(r, 10));
 
     // relance sans repick arrière
     await startScanner({ forceDevice: true, keepUI: true });
