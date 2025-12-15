@@ -458,16 +458,36 @@ function stopScanner(fully=true){
 /* ====== ÉVÉNEMENTS EXISTANTS ====== */
 amountForm.addEventListener('submit', (e)=>{ e.preventDefault(); startScanner(); });
 
-switchBtn.addEventListener('click', async ()=>{
-  let devs = devicesCache.length ? devicesCache : await listCameras();
-  if (!devs.length){ uiMsg.textContent='Aucune caméra.'; uiMsg.className='error'; return; }
-  const idx = devs.findIndex(d=>d.deviceId===currentDeviceId);
-  const next = devs[(idx+1) % devs.length];
-  currentDeviceId = next.deviceId;
-  localStorage.setItem(LS_CAM_ID, currentDeviceId);
-  uiMsg.textContent = 'Caméra sélectionnée. Cliquez sur “Démarrer le scan”.';
-  uiMsg.className = 'muted';
-  if (!scanSection.classList.contains('hidden')){ reader.reset(); startScanner(); }
+switchBtn.addEventListener('click', async () => {
+  try {
+    let devs = devicesCache.length ? devicesCache : await listCameras();
+
+    if (!devs.length) {
+      scanStatus.textContent = "Aucune caméra détectée.";
+      return;
+    }
+
+    // Choisit la prochaine caméra
+    const idx = devs.findIndex(d => d.deviceId === currentDeviceId);
+    const next = devs[(idx + 1) % devs.length] || devs[0];
+
+    currentDeviceId = next.deviceId;
+    localStorage.setItem(LS_CAM_ID, currentDeviceId);
+
+    // IMPORTANT: afficher dans l'écran de scan (pas uiMsg)
+    scanStatus.textContent = `Changement de caméra…`;
+
+    // Stoppe le flux courant
+    try { video.srcObject?.getTracks()?.forEach(t => t.stop()); } catch(_) {}
+    try { reader.reset(); } catch(_) {}
+
+    // Relance le scanner (en restant sur l'écran 2)
+    await startScanner();
+
+  } catch (e) {
+    console.error(e);
+    scanStatus.textContent = "Impossible de basculer la caméra.";
+  }
 });
 
 backBtn.addEventListener('click', ()=> stopScanner(true));
