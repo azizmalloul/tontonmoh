@@ -321,8 +321,11 @@ async function startScanner(){
     if (!devices.length){ await new Promise(r=>setTimeout(r,150)); devices = await listCameras(); }
     if (!devices.length){ scanStatus.textContent='Aucune caméra détectée (permission ?)'; return; }
 
-    currentDeviceId = pickRearCamera(devices);
-    if (currentDeviceId) localStorage.setItem(LS_CAM_ID, currentDeviceId);
+    // garde la caméra sélectionnée si elle existe, sinon prends une arrière
+    if (!currentDeviceId || !devices.some(d => d.deviceId === currentDeviceId)) {
+      currentDeviceId = pickRearCamera(devices);
+      if (currentDeviceId) localStorage.setItem(LS_CAM_ID, currentDeviceId);
+    }
 
     const constraints = {
       video: currentDeviceId ? {
