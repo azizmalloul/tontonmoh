@@ -215,5 +215,22 @@ input:focus{
   display:block;                 /* on l'affiche, sans animation */
 }
 
+.icon-btn{
+  width:44px;
+  height:44px;
+  border-radius:999px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid rgba(0,0,0,.15);
+  background:#fff;
+  cursor:pointer;
+  box-shadow:0 2px 8px rgba(0,0,0,.08);
+}
+.icon-btn:active{ transform: scale(0.98); }
+.icon-btn .icon{
+  font-size:20px;
+  line-height:1;
+}
 
 
