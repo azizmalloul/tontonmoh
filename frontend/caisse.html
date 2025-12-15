@@ -531,6 +531,7 @@ switchBtn.addEventListener('click', async () => {
     // fallback si Safari est lent
     if (!(video.srcObject && video.readyState >= 2)) {
     await new Promise(r => setTimeout(r, 120));
+    try { reader.reset(); } catch(_) {}
     await startScanner({ forceDevice: true, keepUI: true });
   }
 
