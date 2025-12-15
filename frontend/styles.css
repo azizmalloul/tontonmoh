@@ -233,8 +233,13 @@ input:focus{
 .icon-svg{
   width:22px;
   height:22px;
-  fill: currentColor;
-  color:#1f2a1f; /* si tu veux la même teinte que ton thème */
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  color:#1f2a1f;
 }
+
 
 
