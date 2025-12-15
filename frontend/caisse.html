@@ -187,6 +187,10 @@ const adminReason  = document.getElementById('adminReason');
 const adminMsg     = document.getElementById('adminMsg');
 const adminTxList  = document.getElementById('adminTxList');
 
+let isSwitching = false;
+let cameraWarmed = false;
+
+
 /* ====== UTILS ====== */
 function euros(c){
   return (Number(c||0)/100)
@@ -306,40 +310,47 @@ function showClient(cli){
 
 const readerInstance = reader; // juste pour être clair
 
-async function startScanner(){
+async function startScanner(opts = {}) {
+  const { forceDevice = false, keepUI = false } = opts;
+
   const amountCents = validAmount();
   if (!amountCents){ uiMsg.textContent='Entrez le montant avant de scanner.'; uiMsg.className='error'; return; }
-  uiMsg.textContent=''; uiMsg.className='muted';
 
-  formSection.classList.add('hidden');
-  scanSection.classList.remove('hidden');
+  if (!keepUI) {
+    formSection.classList.add('hidden');
+    scanSection.classList.remove('hidden');
+  }
 
   try{
-    await warmUpCameraPermission();
+    if (!cameraWarmed) {
+      await warmUpCameraPermission();
+      cameraWarmed = true;
+    }
 
     let devices = await listCameras();
     if (!devices.length){ await new Promise(r=>setTimeout(r,150)); devices = await listCameras(); }
     if (!devices.length){ scanStatus.textContent='Aucune caméra détectée (permission ?)'; return; }
 
-    // garde la caméra sélectionnée si elle existe, sinon prends une arrière
-    if (!currentDeviceId || !devices.some(d => d.deviceId === currentDeviceId)) {
-      currentDeviceId = pickRearCamera(devices);
-      if (currentDeviceId) localStorage.setItem(LS_CAM_ID, currentDeviceId);
+    // ✅ IMPORTANT :
+    // - si forceDevice=true => on garde currentDeviceId tel quel (ne PAS repick rear)
+    // - sinon => si pas de currentDeviceId valide, on choisit arrière
+    if (!forceDevice) {
+      if (!currentDeviceId || !devices.some(d => d.deviceId === currentDeviceId)) {
+        currentDeviceId = pickRearCamera(devices);
+        if (currentDeviceId) localStorage.setItem(LS_CAM_ID, currentDeviceId);
+      }
+    } else {
+      // si currentDeviceId n'existe plus, fallback normal
+      if (!currentDeviceId || !devices.some(d => d.deviceId === currentDeviceId)) {
+        currentDeviceId = pickRearCamera(devices);
+      }
     }
 
     switchBtn.style.display = devices.length > 1 ? 'inline-flex' : 'none';
 
     const constraints = {
-      video: currentDeviceId ? {
-        deviceId: { exact: currentDeviceId },
-        width:{ ideal:1280 }, height:{ ideal:720 },
-        advanced:[{ focusMode:'continuous' },{ focusMode:'auto' }]
-      } : {
-        facingMode:{ ideal:'environment' },
-        width:{ ideal:1280 }, height:{ ideal:720 },
-        advanced:[{ focusMode:'continuous' },{ focusMode:'auto' }]
-      },
-      audio:false
+      video: currentDeviceId ? { deviceId: { exact: currentDeviceId } } : { facingMode:{ ideal:'environment' } },
+      audio: false
     };
 
     scanStatus.textContent = 'Scanner prêt. Visez le QR…';
@@ -464,34 +475,43 @@ function stopScanner(fully=true){
 amountForm.addEventListener('submit', (e)=>{ e.preventDefault(); startScanner(); });
 
 switchBtn.addEventListener('click', async () => {
+  if (isSwitching) return;
+  isSwitching = true;
+  switchBtn.disabled = true;
+
   try {
     let devs = devicesCache.length ? devicesCache : await listCameras();
+    if (!devs.length) { scanStatus.textContent = "Aucune caméra détectée."; return; }
 
-    if (!devs.length) {
-      scanStatus.textContent = "Aucune caméra détectée.";
-      return;
-    }
-
-    // Choisit la prochaine caméra
     const idx = devs.findIndex(d => d.deviceId === currentDeviceId);
     const next = devs[(idx + 1) % devs.length] || devs[0];
 
+    // ✅ on fixe la caméra AVANT restart
     currentDeviceId = next.deviceId;
     localStorage.setItem(LS_CAM_ID, currentDeviceId);
 
-    // IMPORTANT: afficher dans l'écran de scan (pas uiMsg)
-    scanStatus.textContent = `Changement de caméra…`;
+    scanStatus.textContent = "Changement de caméra…";
 
-    // Stoppe le flux courant
-    try { video.srcObject?.getTracks()?.forEach(t => t.stop()); } catch(_) {}
+    // ✅ stop stream + stop decode propre
     try { reader.reset(); } catch(_) {}
+    try {
+      const s = video.srcObject;
+      if (s) s.getTracks().forEach(t => t.stop());
+      video.srcObject = null;
+    } catch(_) {}
 
-    // Relance le scanner (en restant sur l'écran 2)
-    await startScanner();
+    // petit délai pour laisser le navigateur libérer la caméra
+    await new Promise(r => setTimeout(r, 80));
+
+    // ✅ relance sans repick arrière + sans retoucher l’UI
+    await startScanner({ forceDevice: true, keepUI: true });
 
   } catch (e) {
     console.error(e);
     scanStatus.textContent = "Impossible de basculer la caméra.";
+  } finally {
+    switchBtn.disabled = false;
+    isSwitching = false;
   }
 });
 
