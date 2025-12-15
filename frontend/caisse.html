@@ -523,16 +523,16 @@ switchBtn.addEventListener('click', async () => {
     if (currentDeviceId) localStorage.setItem(LS_CAM_ID, currentDeviceId);
 
     // petit délai
-    await new Promise(r => setTimeout(r, 20));
+    await new Promise(r => setTimeout(r, 10));
     
     // relance
     await startScanner({ forceDevice: true, keepUI: true });
     
     // fallback si Safari est lent
-    if (!video.srcObject) {
-      await new Promise(r => setTimeout(r, 120));
-      await startScanner({ forceDevice: true, keepUI: true });
-    }
+    if (!(video.srcObject && video.readyState >= 2)) {
+    await new Promise(r => setTimeout(r, 120));
+    await startScanner({ forceDevice: true, keepUI: true });
+  }
 
   } catch (e) {
     console.error(e);
