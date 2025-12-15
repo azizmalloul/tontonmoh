@@ -21,7 +21,7 @@
       <input id="amount" type="number" step="0.01" min="0.01" required />
       <div class="row">
         <button id="startBtn" class="btn" type="submit">Démarrer le scan</button>
-        <button id="switchBtn" class="btn outline" type="button" title="Caméra avant/arrière">Basculer caméra</button>
+        
         <button id="clientsBtn" class="btn outline" type="button">Liste des clients</button>
       </div>
       <p class="tip">Entrez le montant puis scannez le QR du client. Le passage caisse sera enregistré automatiquement.</p>
@@ -46,7 +46,12 @@
   <section id="scanSection" class="card hidden">
     <div class="row" style="justify-content:space-between;align-items:center">
       <h2 style="margin:0">2) Scanner le QR</h2>
-      <button id="backBtn" class="btn outline" type="button">⟵ Retour</button>
+      <div class="row" style="gap:10px">
+        <button id="switchBtn" class="icon-btn" type="button" title="Basculer caméra" aria-label="Basculer caméra">
+          <span class="icon">🔄</span>
+        </button>
+        <button id="backBtn" class="btn outline" type="button">⟵ Retour</button>
+      </div>
     </div>
 
     <div id="scanBox">
