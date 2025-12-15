@@ -189,6 +189,23 @@ const adminTxList  = document.getElementById('adminTxList');
 
 let isSwitching = false;
 let cameraWarmed = false;
+const LS_FACING = 'tm_facing';
+let preferredFacing = localStorage.getItem(LS_FACING) || 'environment'; // back par défaut
+
+function pickByFacing(devices, facing){
+  const reFront = /(front|user|avant)/i;
+  const reBack  = /(back|rear|arrière|environment)/i;
+
+  const re = (facing === 'user') ? reFront : reBack;
+  const cand = devices.find(d => re.test(d.label || ''));
+  return cand?.deviceId || null;
+}
+
+function pickDifferentDevice(devices, currentId){
+  if (devices.length <= 1) return currentId || devices[0]?.deviceId || null;
+  const other = devices.find(d => d.deviceId !== currentId);
+  return other?.deviceId || devices[0]?.deviceId || null;
+}
 
 
 /* ====== UTILS ====== */
@@ -330,18 +347,21 @@ async function startScanner(opts = {}) {
     if (!devices.length){ await new Promise(r=>setTimeout(r,150)); devices = await listCameras(); }
     if (!devices.length){ scanStatus.textContent='Aucune caméra détectée (permission ?)'; return; }
 
-    // ✅ IMPORTANT :
-    // - si forceDevice=true => on garde currentDeviceId tel quel (ne PAS repick rear)
-    // - sinon => si pas de currentDeviceId valide, on choisit arrière
+    // si on n'impose pas un device, on suit preferredFacing
     if (!forceDevice) {
-      if (!currentDeviceId || !devices.some(d => d.deviceId === currentDeviceId)) {
-        currentDeviceId = pickRearCamera(devices);
-        if (currentDeviceId) localStorage.setItem(LS_CAM_ID, currentDeviceId);
+      const byFacing = pickByFacing(devices, preferredFacing);
+      if (byFacing) {
+        currentDeviceId = byFacing;
+      } else if (!currentDeviceId || !devices.some(d => d.deviceId === currentDeviceId)) {
+        currentDeviceId = devices[0]?.deviceId || null;
       }
+      if (currentDeviceId) localStorage.setItem(LS_CAM_ID, currentDeviceId);
     } else {
-      // si currentDeviceId n'existe plus, fallback normal
+      // forceDevice=true : on garde currentDeviceId si possible
       if (!currentDeviceId || !devices.some(d => d.deviceId === currentDeviceId)) {
-        currentDeviceId = pickRearCamera(devices);
+        const byFacing = pickByFacing(devices, preferredFacing);
+        currentDeviceId = byFacing || devices[0]?.deviceId || null;
+        if (currentDeviceId) localStorage.setItem(LS_CAM_ID, currentDeviceId);
       }
     }
 
@@ -479,19 +499,11 @@ switchBtn.addEventListener('click', async () => {
   switchBtn.disabled = true;
 
   try {
-    let devs = devicesCache.length ? devicesCache : await listCameras();
-    if (!devs.length) { scanStatus.textContent = "Aucune caméra détectée."; return; }
+    // 🔥 toggle facing (back <-> front)
+    preferredFacing = (preferredFacing === 'environment') ? 'user' : 'environment';
+    localStorage.setItem(LS_FACING, preferredFacing);
 
-    const idx = devs.findIndex(d => d.deviceId === currentDeviceId);
-    const next = devs[(idx + 1) % devs.length] || devs[0];
-
-    // ✅ on fixe la caméra AVANT restart
-    currentDeviceId = next.deviceId;
-    localStorage.setItem(LS_CAM_ID, currentDeviceId);
-
-    scanStatus.textContent = "Changement de caméra…";
-
-    // ✅ stop stream + stop decode propre
+    // stop propre
     try { reader.reset(); } catch(_) {}
     try {
       const s = video.srcObject;
@@ -499,10 +511,21 @@ switchBtn.addEventListener('click', async () => {
       video.srcObject = null;
     } catch(_) {}
 
-    // petit délai pour laisser le navigateur libérer la caméra
+    scanStatus.textContent = "Changement de caméra…";
+
+    // refresh devices après stop (important)
+    const devs = await listCameras();
+    if (!devs.length) { scanStatus.textContent = "Aucune caméra."; return; }
+
+    // ✅ choisir directement la bonne caméra (front/back)
+    const wanted = pickByFacing(devs, preferredFacing);
+    currentDeviceId = wanted || pickDifferentDevice(devs, currentDeviceId);
+    if (currentDeviceId) localStorage.setItem(LS_CAM_ID, currentDeviceId);
+
+    // petit délai
     await new Promise(r => setTimeout(r, 40));
 
-    // ✅ relance sans repick arrière + sans retoucher l’UI
+    // relance sans repick arrière
     await startScanner({ forceDevice: true, keepUI: true });
 
   } catch (e) {
