@@ -169,7 +169,7 @@ input:focus{
   position: relative;
   width: 100%;
   max-width: 520px;   /* optionnel */
-  height: 260px;      /* ✅ diminue ici (Y) */
+  height: 200px;      /* ✅ diminue ici (Y) */
   overflow: hidden;
   border-radius: 16px; /* optionnel */
 }
