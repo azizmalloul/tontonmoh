@@ -327,6 +327,8 @@ async function startScanner(){
       if (currentDeviceId) localStorage.setItem(LS_CAM_ID, currentDeviceId);
     }
 
+    switchBtn.style.display = devices.length > 1 ? 'inline-flex' : 'none';
+
     const constraints = {
       video: currentDeviceId ? {
         deviceId: { exact: currentDeviceId },
