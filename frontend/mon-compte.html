@@ -69,8 +69,9 @@
             <div>
               <h2 style="margin-top:0">${fullName}</h2>
               <p class="muted kv">Code : <b id="codePublic">${cli.code_public}</b></p>
-              <p class="kv">Cumul : <b>${euros(cli.balance)}</b></p>
-              <p class="kv">Cadeaux obtenus : <b>${cli.gifts_count}</b></p>
+              <p class="kv">Cumul achats : <b>${euros(cli.total_spent_cents || 0)}</b></p>
+              <p class="kv">Bonus disponible : <b>${euros(cli.bonus_cents || 0)}</b></p>
+
             </div>
 
             <div class="center">
