@@ -80,7 +80,23 @@
         ⚙️ Admin
       </button>
       <p class="muted kv">Code : <b id="clientCode"></b></p>
-      <p class="muted kv">Solde cumulé : <b id="clientBalance">0,00 €</b> — Cadeaux : <b id="clientGifts">0</b></p>
+
+      
+      <p class="muted kv">
+        Cumul achats : <b id="clientTotal">0,00 €</b>
+        — Bonus dispo : <b id="clientBonus">0,00 €</b>
+      </p>
+      
+      <label class="checkbox" style="margin-top:10px">
+        <input id="useBonus" type="checkbox" />
+        Utiliser mon bonus maintenant
+      </label>
+      
+      <div class="row" style="margin-top:10px">
+        <button id="payBtn" class="btn" type="button">Encaisser</button>
+      </div>
+      
+            
       <p id="formMsg" class="muted"></p>
     </div>
   </section>
@@ -162,6 +178,13 @@ const clientBalance = document.getElementById('clientBalance');
 const clientGifts   = document.getElementById('clientGifts');
 const formMsg       = document.getElementById('formMsg');
 const clientsBtn   = document.getElementById('clientsBtn');
+
+const clientTotal  = document.getElementById('clientTotal');
+const clientBonus  = document.getElementById('clientBonus');
+const useBonus     = document.getElementById('useBonus');
+const payBtn       = document.getElementById('payBtn');
+let pendingClient  = null;
+
 
 
 /* ====== ÉTAT ====== */
@@ -263,7 +286,7 @@ async function fetchClientByCode(code){
   if (!r.ok) throw new Error('Code inconnu');
   return await r.json();
 }
-async function postTransaction(cli, amount_cents){
+async function postTransaction(cli, amount_cents, use_bonus){
   const txId = 'tx_' + Date.now();
   const r = await fetch(`${API}/api/transactions`, {
     method: 'POST',
@@ -274,13 +297,15 @@ async function postTransaction(cli, amount_cents){
       cashier_id: CASHIER_ID,
       amount_cents,
       status: 'OK',
-      note: 'Achat en caisse'
+      note: 'Achat en caisse',
+      use_bonus: !!use_bonus
     }),
   });
   const txt = await r.text(); let j={}; try{ j=JSON.parse(txt) }catch{}
   if (!r.ok) throw new Error(j.error||txt||'Erreur API');
   return j;
 }
+
 async function fetchClientFull(clientId){
   const r = await fetch(`${API}/api/clients/${encodeURIComponent(clientId)}/full`);
   if(!r.ok) throw new Error('Impossible de charger le compte client');
@@ -314,13 +339,19 @@ async function adminAdjustBalance(clientId, newBalanceCents, newGiftsCount, reas
 /* ====== UI CLIENT ====== */
 function showClient(cli){
   currentClient = cli;
+  pendingClient = cli;
+
   clientName.textContent = `${cli.first_name||''} ${cli.last_name||''}`.trim() || 'Client';
   clientCode.textContent = cli.code_public || '';
-  clientBalance.textContent = euros(cli.balance);
-  clientGifts.textContent = cli.gifts_count || 0;
+
+  clientTotal.textContent = euros(cli.total_spent_cents || 0);
+  clientBonus.textContent = euros(cli.bonus_cents || 0);
+
+  useBonus.checked = false;
   clientCard.style.display = 'block';
   adminBtn.style.display = 'inline-block';
 }
+
 
 /* ====== SCAN QR (caméra) ====== */
 
@@ -401,7 +432,13 @@ async function startScanner(opts = {}) {
         showOverlay(`${cli.first_name||''} ${cli.last_name||''}`.trim() || 'Client');
         
         const amount_cents = validAmount();
-        const res = await postTransaction(cli, amount_cents);
+        const cli = await fetchClientByCode(code);
+        showClient(cli);
+        showOverlay(`${cli.first_name||''} ${cli.last_name||''}`.trim() || 'Client');
+        formMsg.textContent = 'Choisissez bonus ou non, puis cliquez “Encaisser”.';
+        formMsg.className = 'muted';
+        scanStatus.textContent = 'En attente encaissement…';
+
         clientBalance.textContent = euros(res.balance_cents);
         clientGifts.textContent   = res.gifts_count;
         
@@ -664,6 +701,51 @@ adminForm.addEventListener('submit', async (e)=>{
     adminMsg.textContent = 'Erreur: ' + err.message;
   }
 });
+
+payBtn.addEventListener('click', async ()=>{
+  try{
+    if(!pendingClient) return;
+
+    const amount_cents = validAmount();
+    if (!amount_cents){
+      formMsg.textContent = 'Montant invalide.';
+      formMsg.className = 'error';
+      return;
+    }
+
+    const use = useBonus.checked;
+
+    const res = await postTransaction(pendingClient, amount_cents, use);
+
+    // MAJ UI
+    clientTotal.textContent = euros(res.total_spent_cents || 0);
+    clientBonus.textContent = euros(res.bonus_cents || 0);
+
+    const fullName = `${pendingClient.first_name||''} ${pendingClient.last_name||''}`.trim() || 'ce client';
+
+    showOverlay(
+      `✅ Payé : ${euros(res.amount_paid_cents || amount_cents)}\n` +
+      (res.bonus_used_cents ? `🎫 Bonus utilisé : ${euros(res.bonus_used_cents)}\n` : '') +
+      `🎁 Bonus gagné : ${euros(res.bonus_earned_cents || 0)}\n` +
+      `Pour ${fullName}`
+    );
+
+    formMsg.textContent = 'Achat enregistré ✔️';
+    formMsg.className = 'success';
+    scanStatus.textContent = 'Prêt pour un autre client…';
+    beep();
+
+    // reset
+    pendingClient = null;
+    clientCard.style.display = 'none';
+    useBonus.checked = false;
+
+  }catch(e){
+    formMsg.textContent = 'Erreur: ' + e.message;
+    formMsg.className = 'error';
+  }
+});
+
 
 // Pré-remplir dernier montant
 const last = localStorage.getItem(LS_LAST_AMOUNT);
