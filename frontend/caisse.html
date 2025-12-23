@@ -174,8 +174,7 @@ const overlayName = document.getElementById('overlayName');
 const clientCard    = document.getElementById('clientCard');
 const clientName    = document.getElementById('clientName');
 const clientCode    = document.getElementById('clientCode');
-const clientBalance = document.getElementById('clientBalance');
-const clientGifts   = document.getElementById('clientGifts');
+
 const formMsg       = document.getElementById('formMsg');
 const clientsBtn   = document.getElementById('clientsBtn');
 
@@ -405,97 +404,46 @@ async function startScanner(opts = {}) {
 
     scanStatus.textContent = 'Scanner prêt. Visez le QR…';
 
-    await reader.decodeFromConstraints(constraints, video, async (result, err)=>{
+    await reader.decodeFromConstraints(constraints, video, async (result, err) => {
       if (err && !(err instanceof ZXingBrowser.NotFoundException)) return;
       if (!result) return;
-
+    
       const code = result.getText().trim().toUpperCase();
       const now  = Date.now();
-
-      const last = lastScan.get(code)||0;
+    
+      const last = lastScan.get(code) || 0;
       if (now - last < COOLDOWN_MS) return;
-
-      if (busy){
-        if (queuedNext !== code){ queuedNext = code; showOverlay('Patienter…'); }
-        return;
-      }
-
+    
+      if (busy) return;
+    
       busy = true;
       lastScan.set(code, now);
-      showOverlay(code);
-
-      try{
+    
+      try {
+        // on mémorise le dernier montant
         localStorage.setItem(LS_LAST_AMOUNT, String(amountInput.value));
-
+    
+        // on charge le client
         const cli = await fetchClientByCode(code);
         showClient(cli);
-        showOverlay(`${cli.first_name||''} ${cli.last_name||''}`.trim() || 'Client');
-        
-        const amount_cents = validAmount();
-        const cli = await fetchClientByCode(code);
-        showClient(cli);
-        showOverlay(`${cli.first_name||''} ${cli.last_name||''}`.trim() || 'Client');
-        formMsg.textContent = 'Choisissez bonus ou non, puis cliquez “Encaisser”.';
-        formMsg.className = 'muted';
+    
+        const fullName = `${cli.first_name || ''} ${cli.last_name || ''}`.trim() || 'Client';
+        showOverlay(fullName);
+    
+        // on attend que la caisse clique sur "Encaisser"
+        formMsg.textContent  = 'Choisissez bonus ou non, puis cliquez “Encaisser”.';
+        formMsg.className    = 'muted';
         scanStatus.textContent = 'En attente encaissement…';
-
-        clientBalance.textContent = euros(res.balance_cents);
-        clientGifts.textContent   = res.gifts_count;
-        
-        // >>> nouveau message dans la box caméra <<<
-        const fullName = `${cli.first_name||''} ${cli.last_name||''}`.trim() || 'ce client';
-        showOverlay(
-          `💶 ${euros(amount_cents)}\n` +
-          `ont été ajoutés\n` +
-          `au compte de ${fullName} ✅`
-        );
-        
-        formMsg.textContent = 'Achat enregistré ✔️';
-        formMsg.className = 'success';
-        scanStatus.textContent = 'Prêt pour un autre QR…';
         beep();
-      }catch(e){
+      } catch (e) {
         console.error(e);
         formMsg.textContent = 'Erreur: ' + e.message;
-        formMsg.className = 'error';
-      }finally{
+        formMsg.className   = 'error';
+      } finally {
         busy = false;
-
-        if (queuedNext){
-          const nextCode = queuedNext; queuedNext = null;
-          const now2 = Date.now();
-          if ((now2 - (lastScan.get(nextCode)||0)) >= COOLDOWN_MS){
-            lastScan.set(nextCode, now2);
-            try{
-              const cli2 = await fetchClientByCode(nextCode);
-              showClient(cli2);
-              showOverlay(`${cli2.first_name||''} ${cli2.last_name||''}`.trim() || 'Client');
-              const amount_cents2 = validAmount();
-              const res2 = await postTransaction(cli2, amount_cents2);
-              clientBalance.textContent = euros(res2.balance_cents);
-              clientGifts.textContent   = res2.gifts_count;
-              
-              // >>> nouveau message dans la box caméra <<<
-              const fullName2 = `${cli2.first_name||''} ${cli2.last_name||''}`.trim() || 'ce client';
-              showOverlay(
-                `💶 ${euros(amount_cents2)}\n` +
-                `ont été ajoutés\n` +
-                `au compte de ${fullName2} ✅`
-              );
-                            
-              formMsg.textContent = 'Achat enregistré ✔️';
-              formMsg.className = 'success';
-              scanStatus.textContent = 'Prêt pour un autre QR…';
-              beep();
-            }catch(e2){
-              console.error(e2);
-              formMsg.textContent = 'Erreur: ' + e2.message;
-              formMsg.className = 'error';
-            }
-          }
-        }
       }
     });
+
 
     // Lampe
     try{
@@ -587,18 +535,26 @@ clientsBtn.addEventListener('click', () => {
   window.location.href = './liste_clients.html';
 });
 
-manualBtn.addEventListener('click', async ()=>{
-  const code = (codeInput.value||'').trim().toUpperCase();
-  if (!code){ uiMsg.textContent='Entrez un code.'; uiMsg.className='error'; return; }
+manualBtn.addEventListener('click', async () => {
+  const code = (codeInput.value || '').trim().toUpperCase();
+  if (!code) {
+    uiMsg.textContent = 'Entrez un code.';
+    uiMsg.className   = 'error';
+    return;
+  }
   const amount_cents = validAmount();
-  if (!amount_cents){ uiMsg.textContent='Entrez le montant avant de valider.'; uiMsg.className='error'; return; }
+  if (!amount_cents) {
+    uiMsg.textContent = 'Entrez le montant avant de valider.';
+    uiMsg.className   = 'error';
+    return;
+  }
 
-  try{
-    const now = Date.now();
-    const last = lastScan.get(code)||0;
-    if (now - last < COOLDOWN_MS){
+  try {
+    const now  = Date.now();
+    const last = lastScan.get(code) || 0;
+    if (now - last < COOLDOWN_MS) {
       uiMsg.textContent = 'Même client scanné récemment — patientez quelques secondes.';
-      uiMsg.className = 'error';
+      uiMsg.className   = 'error';
       return;
     }
     lastScan.set(code, now);
@@ -610,30 +566,21 @@ manualBtn.addEventListener('click', async ()=>{
 
     const cli = await fetchClientByCode(code);
     showClient(cli);
-    showOverlay(`${cli.first_name||''} ${cli.last_name||''}`.trim() || 'Client');
-    
-    const r = await postTransaction(cli, amount_cents);
-    clientBalance.textContent = euros(r.balance_cents);
-    clientGifts.textContent   = r.gifts_count;
-    
-    // >>> nouveau message dans la box caméra <<<
-    const fullName = `${cli.first_name||''} ${cli.last_name||''}`.trim() || 'ce client';
-    showOverlay(
-      `💶 ${euros(amount_cents)}\n` +
-      `ont été ajoutés\n` +
-      `au compte de ${fullName} ✅`
-    );
-    
-    formMsg.textContent = 'Achat enregistré ✔️';
-    formMsg.className = 'success';
-    scanStatus.textContent = 'Vous pouvez scanner un autre QR…';
+
+    const fullName = `${cli.first_name || ''} ${cli.last_name || ''}`.trim() || 'Client';
+    showOverlay(fullName);
+
+    formMsg.textContent  = 'Choisissez bonus ou non, puis cliquez “Encaisser”.';
+    formMsg.className    = 'muted';
+    scanStatus.textContent = 'Vous pouvez maintenant cliquer sur “Encaisser”.';
     beep();
-  }catch(err){
+  } catch (err) {
     console.error(err);
     formMsg.textContent = 'Erreur: ' + err.message;
-    formMsg.className = 'error';
+    formMsg.className   = 'error';
   }
 });
+
 
 /* ====== ADMIN UI (inchangé) ====== */
 adminBtn.addEventListener('click', async ()=>{
@@ -702,49 +649,62 @@ adminForm.addEventListener('submit', async (e)=>{
   }
 });
 
-payBtn.addEventListener('click', async ()=>{
-  try{
-    if(!pendingClient) return;
+payBtn.addEventListener('click', async () => {
+  try {
+    if (!pendingClient) return;
 
     const amount_cents = validAmount();
-    if (!amount_cents){
+    if (!amount_cents) {
       formMsg.textContent = 'Montant invalide.';
-      formMsg.className = 'error';
+      formMsg.className   = 'error';
       return;
     }
 
     const use = useBonus.checked;
 
+    // on garde l'ancien bonus pour calculer le "bonus gagné"
+    const oldBonus = Number(pendingClient.bonus_cents || 0);
+
     const res = await postTransaction(pendingClient, amount_cents, use);
 
-    // MAJ UI
-    clientTotal.textContent = euros(res.total_spent_cents || 0);
-    clientBonus.textContent = euros(res.bonus_cents || 0);
+    const newBonus   = Number(res.bonus_cents || 0);
+    const usedBonus  = Number(res.bonus_used_cents || 0);
+    const paid       = Number(res.paid_cents != null ? res.paid_cents : amount_cents);
+    const earned     = Math.max(0, newBonus - (oldBonus - usedBonus));
 
-    const fullName = `${pendingClient.first_name||''} ${pendingClient.last_name||''}`.trim() || 'ce client';
+    // mettre à jour le modèle local
+    pendingClient.bonus_cents       = newBonus;
+    pendingClient.total_spent_cents = Number(res.total_spent_cents || 0);
+
+    // MAJ UI
+    clientTotal.textContent = euros(pendingClient.total_spent_cents);
+    clientBonus.textContent = euros(pendingClient.bonus_cents);
+
+    const fullName = `${pendingClient.first_name || ''} ${pendingClient.last_name || ''}`.trim() || 'ce client';
 
     showOverlay(
-      `✅ Payé : ${euros(res.amount_paid_cents || amount_cents)}\n` +
-      (res.bonus_used_cents ? `🎫 Bonus utilisé : ${euros(res.bonus_used_cents)}\n` : '') +
-      `🎁 Bonus gagné : ${euros(res.bonus_earned_cents || 0)}\n` +
+      `✅ Payé : ${euros(paid)}\n` +
+      (usedBonus ? `🎫 Bonus utilisé : ${euros(usedBonus)}\n` : '') +
+      `🎁 Bonus gagné : ${euros(earned)}\n` +
       `Pour ${fullName}`
     );
 
-    formMsg.textContent = 'Achat enregistré ✔️';
-    formMsg.className = 'success';
+    formMsg.textContent   = 'Achat enregistré ✔️';
+    formMsg.className     = 'success';
     scanStatus.textContent = 'Prêt pour un autre client…';
     beep();
 
     // reset
-    pendingClient = null;
+    pendingClient   = null;
     clientCard.style.display = 'none';
     useBonus.checked = false;
 
-  }catch(e){
+  } catch (e) {
     formMsg.textContent = 'Erreur: ' + e.message;
-    formMsg.className = 'error';
+    formMsg.className   = 'error';
   }
 });
+
 
 
 // Pré-remplir dernier montant
