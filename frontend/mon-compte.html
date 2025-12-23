@@ -29,7 +29,13 @@
     const p = new URLSearchParams(location.search);
     const codeFromUrl = (p.get('code') || '').trim().toUpperCase();
 
-    function euros(cents){ return (Number(cents||0)/100).toFixed(2) + ' €'; }
+    function euros(cents){
+      return (Number(cents || 0) / 100)
+        .toFixed(2)           // 12.50
+        .replace('.', ',')    // 12,50
+        + ' €';
+    }
+
     function showError(msg){ elContent.innerHTML = `<p class="error">${msg}</p>`; }
 
     function txRow(tx){
@@ -111,7 +117,7 @@
           }
 
           <p class="muted" style="margin-top:12px">
-            Conseil : gardez votre QR, chaque achat vous rapproche d’un cadeau 🎁
+            Conseil : gardez votre QR, chaque achat augmente votre bonus 💶
           </p>
         `;
 
