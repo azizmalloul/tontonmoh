@@ -27,10 +27,10 @@
     <h2 style="margin-top:0">Clients</h2>
 
     <p class="tip">
-    
-      Cliquez sur <b>Compte</b> pour voir le solde + l’historique et ajuster le cumul / cadeaux.<br/>
+      Cliquez sur <b>Compte</b> pour voir le cumul d’achats, le bonus et l’historique.<br/>
       Cliquez sur 🗑️ pour supprimer un client.
     </p>
+
     <div id="list" class="kv"></div>
     <p id="msg" class="muted"></p>
   </section>
@@ -49,16 +49,18 @@
 
     <hr class="muted"/>
 
-    <h3>Ajuster cumul / cadeaux</h3>
+    <h3>Ajuster cumul / bonus</h3>
+
     <form id="accountForm" class="grid">
       <div>
-        <label for="accBalance">Cumul (en €)</label>
+        <label for="accBalance">Cumul achats (en €)</label>
         <input id="accBalance" type="number" step="0.01" min="0" />
       </div>
       <div>
-        <label for="accGifts">Cadeaux (compteur)</label>
-        <input id="accGifts" type="number" min="0" />
+        <label for="accBonus">Bonus (en €)</label>
+        <input id="accBonus" type="number" step="0.01" min="0" />
       </div>
+
       <div style="grid-column:1/-1" class="row">
         <input id="accReason" type="text" placeholder="Motif de l'ajustement (ex: cadeau remis / correction saisie)" style="flex:1"/>
         <button id="accSave" class="btn" type="submit">Enregistrer l’ajustement</button>
@@ -159,7 +161,7 @@ async function fetchClientFull(clientId){
   if(!r.ok) throw new Error('Impossible de charger le compte client');
   return await r.json();
 }
-async function adminAdjustBalance(clientId, newBalanceCents, newGiftsCount, reason){
+async function adminAdjustBalance(clientId, newTotalSpentCents, newBonusCents, reason){
   let adminKey = localStorage.getItem(ADMIN_KEY_LS) || '';
   if(!adminKey){
     adminKey = prompt('Clé Admin ?');
@@ -175,8 +177,8 @@ async function adminAdjustBalance(clientId, newBalanceCents, newGiftsCount, reas
     },
     body: JSON.stringify({
       client_id: clientId,
-      set_balance_cents: newBalanceCents,
-      set_gifts_count: newGiftsCount,
+      set_total_spent_cents: newTotalSpentCents,
+      set_bonus_cents: newBonusCents,
       reason: reason || '',
       cashier_id: CASHIER_ID
     })
@@ -185,8 +187,10 @@ async function adminAdjustBalance(clientId, newBalanceCents, newGiftsCount, reas
   if(!r.ok || !j.ok){
     throw new Error(j.error ? `Erreur admin: ${j.error}` : 'Ajustement refusé');
   }
+  // Worker renvoie: { ok, bonus_cents, bonus_progress_cents, total_spent_cents }
   return j;
 }
+
 
 // --------- UI liste
 const listBox    = document.getElementById('list');
@@ -226,8 +230,9 @@ function renderList(data){
         el('button', {
           class:'btn outline',
           'data-role':'account',
-          title:'Voir le compte (solde, cadeaux, historique)'
+          title:'Voir le compte (cumul, bonus, historique)'
         }, 'Compte'),
+
         el('button', {
           class:'btn outline',
           'data-role':'delete',
@@ -294,8 +299,9 @@ const accountClose  = document.getElementById('accountClose');
 const accName       = document.getElementById('accName');
 const accCode       = document.getElementById('accCode');
 const accBalance    = document.getElementById('accBalance');
-const accGifts      = document.getElementById('accGifts');
+const accBonus      = document.getElementById('accBonus');
 const accReason     = document.getElementById('accReason');
+
 const accMsg        = document.getElementById('accMsg');
 const accTxList     = document.getElementById('accTxList');
 const accountForm   = document.getElementById('accountForm');
@@ -316,10 +322,12 @@ async function openAccount(client){
     accName.textContent = name || 'Client';
     accCode.textContent = full.client.code_public || '';
 
-    const balCents = Number(full.balance?.euro_cents_accumulated || 0);
-    const gifts    = Number(full.balance?.gifts_count || 0);
-    accBalance.value = (balCents/100).toFixed(2);
-    accGifts.value   = gifts;
+    const totalCents = Number(full.balance?.total_spent_cents || 0);
+    const bonusCents = Number(full.balance?.bonus_cents || 0);
+    
+    accBalance.value = (totalCents / 100).toFixed(2);
+    accBonus.value   = (bonusCents / 100).toFixed(2);
+
 
     accTxList.innerHTML = (full.transactions||[]).map(t=>{
       const dt  = (t.created_at||'').replace('T',' ').replace('Z','');
@@ -346,20 +354,44 @@ accountForm.addEventListener('submit', async (e)=>{
     if(!currentAccountClient) return;
     accMsg.textContent = 'Enregistrement…';
 
-    const eurosStr = String(accBalance.value || '0').replace(',','.');
-    const cents    = Math.max(0, Math.round(parseFloat(eurosStr||'0')*100));
-    const gifts    = Math.max(0, parseInt(accGifts.value||'0', 10));
-    const reason   = accReason.value || '';
+    // Cumul achats (en €) -> total_spent_cents
+    const eurosTotalStr = String(accBalance.value || '0').replace(',','.');
+    const totalCents = Math.max(
+      0,
+      Math.round(parseFloat(eurosTotalStr || '0') * 100)
+    );
 
-    const res = await adminAdjustBalance(currentAccountClient.id, cents, gifts, reason);
-    accMsg.textContent   = 'Ajustement enregistré ✔️';
-    accBalance.value     = (res.balance_cents/100).toFixed(2);
-    accGifts.value       = res.gifts_count;
+    // Bonus (en €) -> bonus_cents
+    const eurosBonusStr = String(accBonus.value || '0').replace(',','.');
+    const bonusCents = Math.max(
+      0,
+      Math.round(parseFloat(eurosBonusStr || '0') * 100)
+    );
+
+    const reason = accReason.value || '';
+
+    const res = await adminAdjustBalance(
+      currentAccountClient.id,
+      totalCents,
+      bonusCents,
+      reason
+    );
+
+    // Mise à jour en mémoire
+    currentAccountClient.total_spent_cents = Number(res.total_spent_cents ?? totalCents);
+    currentAccountClient.bonus_cents       = Number(res.bonus_cents ?? bonusCents);
+
+    // MAJ des champs
+    accBalance.value = (currentAccountClient.total_spent_cents / 100).toFixed(2);
+    accBonus.value   = (currentAccountClient.bonus_cents / 100).toFixed(2);
+
+    accMsg.textContent = 'Ajustement enregistré ✔️';
   }catch(err){
     console.error(err);
     accMsg.textContent = 'Erreur: ' + err.message;
   }
 });
+
 
 // --------- Events liste
 searchBtn .addEventListener('click', ()=> load(qInput.value));
