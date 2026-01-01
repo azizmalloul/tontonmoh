@@ -49,16 +49,14 @@
     }
     
     // Cagnotte gagnée sur ce passage (10% par exemple)
-    // change BONUS_RATE si ta règle est différente
     const BONUS_RATE = 0.10;
     function bonusForTx(amount_cents) {
       return Math.round(Number(amount_cents || 0) * BONUS_RATE);
     }
-
-
+    
     function txRow(tx){
       const sign = tx.status === 'OK' ? '+' : '±';
-      const dt = new Date(tx.created_at || tx.createdAt || tx.ts || Date.now());
+      const dt   = new Date(tx.created_at || tx.createdAt || tx.ts || Date.now());
       const pad  = n => String(n).padStart(2, '0');
     
       const date = `${pad(dt.getDate())}/${pad(dt.getMonth()+1)}/${dt.getFullYear()}`;
@@ -69,17 +67,24 @@
       const bonusStr  = euros(bonusForTx(tx.amount_cents));
       const note      = tx.note ? ` — ${tx.note}` : '';
     
-      // 2 lignes : 1) Date / Mode / Montant + Cagnotte  2) Heure (+ note)
+      // ⚠️ 1 seule <tr> par transaction, tout est dans un bloc .tx-box
       return `
-        <tr>
-          <td>${date}</td>
-          <td>${mode}</td>
-          <td style="text-align:right">${amountStr} / ${bonusStr}</td>
-        </tr>
-        <tr>
-          <td colspan="3" class="tx-sub">${time}${note}</td>
+        <tr class="tx-row">
+          <td colspan="3">
+            <div class="tx-box">
+              <div class="tx-main">
+                <span class="tx-date">${date}</span>
+                <span class="tx-mode">${mode}</span>
+                <span class="tx-amount">${amountStr} / ${bonusStr}</span>
+              </div>
+              <div class="tx-subline">
+                ${time}${note}
+              </div>
+            </div>
+          </td>
         </tr>`;
     }
+
 
 
     async function main(){
