@@ -314,7 +314,7 @@ input:focus{
 
   /* bloc plus compact sur mobile */
   .tx-box{
-    padding:2px 6px 4px;
+    padding:0 6px 2px;   /* encore moins d’espace haut/bas */
   }
 
   .tx-main{
@@ -327,14 +327,13 @@ input:focus{
     text-align:right;
   }
 
-  /* heure presque collée à la date */
+  /* heure quasi collée à la date */
   .tx-subline{
-    padding-left:0;     /* collé à la date */
-    margin-top:-2px;    /* remonte la ligne */
-    line-height:1.0;    /* très peu d'espace vertical */
-    font-size:0.8rem;
+    padding-left:0;      /* alignée sur la date */
+    margin-top:-6px;     /* remonte franchement la 2e ligne */
+    line-height:1;       /* aucune marge verticale en plus */
+    font-size:0.78rem;   /* un poil plus petit */
   }
 }
-
 
 
