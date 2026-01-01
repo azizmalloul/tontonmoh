@@ -241,4 +241,27 @@ input:focus{
   object-fit: contain;
 }
 
+.history{
+  width:100%;
+  border-collapse:collapse;
+  font-size:0.95rem;
+}
+
+.history th,
+.history td{
+  padding:4px 6px;
+}
+
+.history th{
+  text-align:left;
+  border-bottom:1px solid #e5e7eb;
+}
+
+.tx-sub{
+  padding-top:0;
+  padding-bottom:8px;
+  font-size:0.85rem;
+  color:var(--muted);
+  padding-left:24px; /* petit décalage de la 2e ligne */
+}
 
