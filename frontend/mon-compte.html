@@ -38,18 +38,49 @@
 
     function showError(msg){ elContent.innerHTML = `<p class="error">${msg}</p>`; }
 
+    // --- Helpers pour affichage historique en 2 lignes ---
+    
+    // QR / RFID / ADMIN en fonction de la note
+    function txMode(tx) {
+      const note = (tx.note || '').toLowerCase();
+      if (note.includes('rfid'))   return 'RFID';
+      if (note.includes('[admin')) return 'ADMIN';
+      return 'QR';
+    }
+    
+    // Cagnotte gagnée sur ce passage (10% par exemple)
+    // change BONUS_RATE si ta règle est différente
+    const BONUS_RATE = 0.10;
+    function bonusForTx(amount_cents) {
+      return Math.round(Number(amount_cents || 0) * BONUS_RATE);
+    }
+
+
     function txRow(tx){
       const sign = tx.status === 'OK' ? '+' : '±';
       const dt = new Date(tx.created_at || tx.createdAt || tx.ts || Date.now());
-      const date = dt.toLocaleString();
+      const pad  = n => String(n).padStart(2, '0');
+    
+      const date = `${pad(dt.getDate())}/${pad(dt.getMonth()+1)}/${dt.getFullYear()}`;
+      const time = `${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`;
+    
+      const mode      = txMode(tx);                       // QR / RFID / ADMIN
+      const amountStr = `${sign} ${euros(tx.amount_cents)}`;
+      const bonusStr  = euros(bonusForTx(tx.amount_cents));
+      const note      = tx.note ? ` — ${tx.note}` : '';
+    
+      // 2 lignes : 1) Date / Mode / Montant + Cagnotte  2) Heure (+ note)
       return `
         <tr>
-          <td style="white-space:nowrap">${date}</td>
-          <td>${tx.status}</td>
-          <td style="text-align:right">${sign} ${euros(tx.amount_cents)}</td>
-          <td class="muted">${tx.note ? tx.note : ''}</td>
+          <td>${date}</td>
+          <td>${mode}</td>
+          <td style="text-align:right">${amountStr} / ${bonusStr}</td>
+        </tr>
+        <tr>
+          <td colspan="3" class="tx-sub">${time}${note}</td>
         </tr>`;
     }
+
 
     async function main(){
       if (!codeFromUrl){
@@ -99,13 +130,12 @@
           ${
             (txs && txs.length)
             ? `<div style="overflow:auto">
-                 <table style="width:100%; border-collapse:collapse">
+                 <table class="history">
                    <thead>
                      <tr>
-                       <th style="text-align:left">Date</th>
-                       <th style="text-align:left">Statut</th>
-                       <th style="text-align:right">Montant</th>
-                       <th style="text-align:left">Note</th>
+                       <th>Date</th>
+                       <th>QR / RFID</th>
+                       <th style="text-align:right">Montant / Cagnotte</th>
                      </tr>
                    </thead>
                    <tbody>
@@ -115,6 +145,7 @@
                </div>`
             : `<p class="muted">Aucune transaction pour le moment.</p>`
           }
+
 
           <p class="muted" style="margin-top:12px">
             Conseil : gardez votre QR, chaque achat augmente votre cagnotte 💶
