@@ -185,6 +185,7 @@ const formMsg       = document.getElementById('formMsg');
 const clientsBtn   = document.getElementById('clientsBtn');
 
 const clientTotal  = document.getElementById('clientTotal');
+  
 const clientBonus  = document.getElementById('clientBonus');
 const useBonus     = document.getElementById('useBonus');
 const payBtn       = document.getElementById('payBtn');
@@ -193,7 +194,9 @@ let pendingClient  = null;
 const clientCurrentAmount = document.getElementById('clientCurrentAmount');
 let currentAmountCents = 0;   // montant de cet achat
 
-
+// conteneurs pour pouvoir les cacher / réafficher
+const useBonusContainer = useBonus.closest('label');   // le label .checkbox
+const payBtnRow         = payBtn.parentElement;        // le <div class="row"> autour d’Encaisser
 
 
 /* ====== ÉTAT ====== */
@@ -383,6 +386,10 @@ function showClient(cli){
   useBonus.checked = false;
   clientCard.style.display = 'block';
   adminBtn.style.display = 'inline-block';
+
+  // ➜ on ré-affiche la case bonus + le bouton Encaisser
+  if (useBonusContainer) useBonusContainer.style.display = 'flex';
+  if (payBtnRow)         payBtnRow.style.display = 'flex';
 }
 
 
@@ -778,12 +785,13 @@ payBtn.addEventListener('click', async () => {
     scanStatus.textContent = 'Prêt pour un autre client…';
     beep();
 
-    // reset logique : on évite un 2e encaissement, mais on garde la fiche visible
+    // reset logique : pas de 2e encaissement, mais fiche client visible
     pendingClient = null;
     useBonus.checked = false;
-    // si tu préfères, tu peux aussi remettre le montant de l'achat à zéro :
-    // currentAmountCents = 0;
-    // clientCurrentAmount.textContent = '0,00 €';
+
+    // ➜ on masque la case "Utiliser mon bonus" et le bouton Encaisser
+    if (useBonusContainer) useBonusContainer.style.display = 'none';
+    if (payBtnRow)         payBtnRow.style.display = 'none';
 
 
   } catch (e) {
