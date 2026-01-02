@@ -67,23 +67,21 @@
       const bonusStr  = euros(bonusForTx(tx.amount_cents));
       const note      = tx.note ? ` — ${tx.note}` : '';
     
-      // ⚠️ 1 seule <tr> par transaction, tout est dans un bloc .tx-box
       return `
         <tr class="tx-row">
           <td colspan="3">
             <div class="tx-box">
-              <div class="tx-main">
-                <span class="tx-date">${date}</span>
-                <span class="tx-mode">${mode}</span>
-                <span class="tx-amount">${amountStr} / ${bonusStr}</span>
-              </div>
-              <div class="tx-subline">
-                ${time}${note}
+              <div class="tx-grid">
+                <div class="tx-date">${date}</div>
+                <div class="tx-mode">${mode}</div>
+                <div class="tx-amount">${amountStr} / ${bonusStr}</div>
+                <div class="tx-subline">${time}${note}</div>
               </div>
             </div>
           </td>
         </tr>`;
     }
+
 
 
 
