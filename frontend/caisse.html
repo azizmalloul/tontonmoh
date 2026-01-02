@@ -778,10 +778,13 @@ payBtn.addEventListener('click', async () => {
     scanStatus.textContent = 'Prêt pour un autre client…';
     beep();
 
-    // reset
-    pendingClient   = null;
-    clientCard.style.display = 'none';
+    // reset logique : on évite un 2e encaissement, mais on garde la fiche visible
+    pendingClient = null;
     useBonus.checked = false;
+    // si tu préfères, tu peux aussi remettre le montant de l'achat à zéro :
+    // currentAmountCents = 0;
+    // clientCurrentAmount.textContent = '0,00 €';
+
 
   } catch (e) {
     formMsg.textContent = 'Erreur: ' + e.message;
