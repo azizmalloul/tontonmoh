@@ -281,7 +281,7 @@ input:focus{
 /* bloc d'une transaction */
 .tx-box{
   border-radius:10px;
-  padding:4px 8px 6px;  /* ↓ un peu moins de padding haut/bas */
+  padding:4px 8px 6px;
 }
 
 /* alternance de couleurs : une par transaction */
@@ -292,34 +292,41 @@ input:focus{
   background:#f3f4f6;   /* gris plus clair */
 }
 
-/* ligne principale : date / mode / montant */
-.tx-main{
+/* layout interne d'une transaction : 2 lignes, 3 colonnes */
+.tx-grid{
   display:grid;
-  grid-template-columns: minmax(80px, 1fr) auto minmax(90px, 1fr);
-  align-items:center;
+  grid-template-columns: 1fr 0.6fr 1fr; /* ≈ Date | QR/RFID | Montant */
+  grid-template-rows:auto auto;
+  grid-template-areas:
+    "date mode amount"
+    "time mode amount";
   column-gap:8px;
+  row-gap:0;
   font-size:0.9rem;
 }
 
+/* 1ère ligne */
 .tx-date{
-  text-align:left;
+  grid-area:date;
 }
 
 .tx-mode{
-  text-align:center;   /* QR / RFID centré dans sa colonne */
+  grid-area:mode;
+  align-self:center;
+  justify-self:center;
 }
 
 .tx-amount{
+  grid-area:amount;
   text-align:right;
+  align-self:center;
 }
 
-/* 2e ligne : heure + note */
+/* 2e ligne : heure + note, TOUJOURS SOUS LA DATE */
 .tx-subline{
-  margin-top:0;
+  grid-area:time;
   font-size:0.85rem;
   color:var(--muted);
-  padding-left:4px;    /* un léger décalage */
-  line-height:1.2;       /* texte un peu plus compact */
 }
 
 /* Tweaks mobile */
@@ -328,27 +335,21 @@ input:focus{
     font-size:0.8rem;
   }
 
-  /* bloc plus compact sur mobile */
   .tx-box{
-    padding:0 6px 2px;   /* encore moins d’espace haut/bas */
+    padding:2px 6px 4px;
   }
 
-  .tx-main{
+  .tx-grid{
     font-size:0.85rem;
-    grid-template-columns: minmax(70px, 1fr) auto minmax(80px, 1fr);
+    grid-template-columns: 1.1fr 0.7fr 1.2fr;
   }
 
   .tx-amount{
-    font-size:0.84rem;
-    text-align:right;
+    font-size:0.82rem;
   }
 
-  /* heure quasi collée à la date */
   .tx-subline{
-    padding-left:0;      /* alignée sur la date */
-    margin-top:-5px;     /* remonte franchement la 2e ligne */
-    line-height:1;       /* aucune marge verticale en plus */
-    font-size:0.78rem;   /* un poil plus petit */
+    font-size:0.78rem;
   }
 }
 
