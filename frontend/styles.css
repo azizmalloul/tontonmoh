@@ -346,7 +346,7 @@ input:focus{
   /* heure quasi collée à la date */
   .tx-subline{
     padding-left:0;      /* alignée sur la date */
-    margin-top:-15px;     /* remonte franchement la 2e ligne */
+    margin-top:-10px;     /* remonte franchement la 2e ligne */
     line-height:1;       /* aucune marge verticale en plus */
     font-size:0.78rem;   /* un poil plus petit */
   }
