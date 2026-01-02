@@ -190,6 +190,10 @@ const useBonus     = document.getElementById('useBonus');
 const payBtn       = document.getElementById('payBtn');
 let pendingClient  = null;
 
+const clientCurrentAmount = document.getElementById('clientCurrentAmount');
+let currentAmountCents = 0;   // montant de cet achat
+
+
 
 
 /* ====== ÉTAT ====== */
@@ -248,12 +252,32 @@ function validAmount(){
   const v = parseFloat(String(amountInput.value).replace(',','.'));
   return (v && v>0) ? Math.round(v*100) : 0;
 }
-function showOverlay(text){
+function showOverlay(text, opts = {}){
+  const { duration = 3000, onHide } = opts;
   overlayName.textContent = text;
   overlayName.classList.add('show');
   clearTimeout(showOverlay._t);
-  showOverlay._t = setTimeout(()=>overlayName.classList.remove('show'), 3000);
+  showOverlay._t = setTimeout(()=>{
+    overlayName.classList.remove('show');
+    if (typeof onHide === 'function') onHide();
+  }, duration);
 }
+
+function collapseScanBox(){
+  const box = document.getElementById('scanBox');
+  if (!box) return;
+  box.classList.add('scan-box-collapsed');
+  scanStatus.textContent = '';
+}
+
+function expandScanBox(){
+  const box = document.getElementById('scanBox');
+  if (!box) return;
+  box.classList.remove('scan-box-collapsed');
+  scanStatus.textContent = 'Visez le QR…';
+}
+
+
 async function listCameras(){
   const list = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
   devicesCache = list;
@@ -369,8 +393,17 @@ const readerInstance = reader; // juste pour être clair
 async function startScanner(opts = {}) {
   const { forceDevice = false, keepUI = false } = opts;
 
+  expandScanBox();   // on ré-affiche le carré caméra
+
   const amountCents = validAmount();
-  if (!amountCents){ uiMsg.textContent='Entrez le montant avant de scanner.'; uiMsg.className='error'; return; }
+  if (!amountCents){
+    uiMsg.textContent='Entrez le montant avant de scanner.';
+    uiMsg.className='error';
+    return;
+  }
+  currentAmountCents = amountCents;                      // on garde ce montant
+  clientCurrentAmount.textContent = euros(amountCents);  // pré-affiche dans la fiche client
+
 
   if (!keepUI) {
     formSection.classList.add('hidden');
@@ -436,15 +469,23 @@ async function startScanner(opts = {}) {
         // on charge le client
         const cli = await fetchClientByCode(code);
         showClient(cli);
-    
+
+        // montant de cet achat dans la fiche
+        clientCurrentAmount.textContent = euros(currentAmountCents);
+
         const fullName = `${cli.first_name || ''} ${cli.last_name || ''}`.trim() || 'Client';
-        showOverlay(fullName);
-    
-        // on attend que la caisse clique sur "Encaisser"
+
+        // Affiche le nom 1 seconde, puis replie le carré caméra
+        showOverlay(fullName, {
+          duration: 1000,
+          onHide: collapseScanBox
+        });
+
         formMsg.textContent  = 'Choisissez bonus ou non, puis cliquez “Encaisser”.';
         formMsg.className    = 'muted';
         scanStatus.textContent = 'En attente encaissement…';
         beep();
+
       } catch (e) {
         console.error(e);
         formMsg.textContent = 'Erreur: ' + e.message;
@@ -558,6 +599,8 @@ manualBtn.addEventListener('click', async () => {
     uiMsg.className   = 'error';
     return;
   }
+  currentAmountCents = amount_cents;
+  clientCurrentAmount.textContent = euros(currentAmountCents);
 
   try {
     const now  = Date.now();
@@ -578,7 +621,10 @@ manualBtn.addEventListener('click', async () => {
     showClient(cli);
 
     const fullName = `${cli.first_name || ''} ${cli.last_name || ''}`.trim() || 'Client';
-    showOverlay(fullName);
+    showOverlay(fullName, {
+      duration: 1000,
+      onHide: collapseScanBox
+    });
 
     formMsg.textContent  = 'Choisissez bonus ou non, puis cliquez “Encaisser”.';
     formMsg.className    = 'muted';
@@ -691,7 +737,7 @@ payBtn.addEventListener('click', async () => {
   try {
     if (!pendingClient) return;
 
-    const amount_cents = validAmount();
+    const amount_cents = currentAmountCents;
     if (!amount_cents) {
       formMsg.textContent = 'Montant invalide.';
       formMsg.className   = 'error';
