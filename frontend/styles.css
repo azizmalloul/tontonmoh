@@ -246,6 +246,7 @@ input:focus{
   width:100%;
   border-collapse:separate;
   border-spacing:0 8px;   /* espace entre CHAQUE transaction (bloc) */
+  table-layout:fixed;  /* important pour respecter les width ci-dessous */
 }
 
 /* en-tête */
@@ -254,6 +255,21 @@ input:focus{
   font-size:.9rem;
   padding:4px 6px;
   border-bottom:1px solid #e5e7eb;
+}
+
+.history thead th:nth-child(1){
+  width:33%;
+  text-align:left;
+}
+
+.history thead th:nth-child(2){
+  width:34%;
+  text-align:center;   /* "QR / RFID" bien centré entre les deux */
+}
+
+.history thead th:nth-child(3){
+  width:33%;
+  text-align:right;    /* "Montant / Cagnotte" aligné à droite */
 }
 
 /* cellule unique de chaque bloc */
