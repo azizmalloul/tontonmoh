@@ -294,22 +294,22 @@ input:focus{
 
 /* ligne principale : date / mode / montant */
 .tx-main{
-  display:flex;
-  align-items:flex-start;
-  gap:8px;
+  display:grid;
+  grid-template-columns: minmax(80px, 1fr) auto minmax(90px, 1fr);
+  align-items:center;
+  column-gap:8px;
   font-size:0.9rem;
 }
 
 .tx-date{
-  min-width:80px;
+  text-align:left;
 }
 
 .tx-mode{
-  flex:0 0 auto;
+  text-align:center;   /* QR / RFID centré dans sa colonne */
 }
 
 .tx-amount{
-  margin-left:auto;
   text-align:right;
 }
 
@@ -335,11 +335,11 @@ input:focus{
 
   .tx-main{
     font-size:0.85rem;
-    flex-wrap:wrap;
+    grid-template-columns: minmax(70px, 1fr) auto minmax(80px, 1fr);
   }
 
   .tx-amount{
-    width:100%;
+    font-size:0.84rem;
     text-align:right;
   }
 
