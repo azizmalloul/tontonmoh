@@ -369,7 +369,7 @@ input:focus{
 
 #adminBtn{
   position: absolute;
-  top: 8px;     /* haut/bas */
+  top: 1px;     /* haut/bas */
   right: 16px;  /* gauche/droite (0 = collé à droite) */
 }
 
