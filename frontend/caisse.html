@@ -524,14 +524,29 @@ async function startScanner(opts = {}) {
   }
 }
 
+function stopCameraStream(){
+  try { reader.reset(); } catch(_) {}
+
+  try{
+    const s = video.srcObject;
+    if (s){
+      s.getTracks().forEach(t => t.stop());
+    }
+    video.srcObject = null;
+  }catch(_){}
+}
+  
 function stopScanner(fully=true){
-  try{ if (fully) reader.reset(); }catch(_){}
+  if (fully){
+    stopCameraStream();  // coupe vraiment la caméra
+  }
   scanSection.classList.add('hidden');
   formSection.classList.remove('hidden');
   clientCard.style.display='none';
   formMsg.textContent='';
   scanStatus.textContent='Visez le QR…';
 }
+
 
 /* ====== ÉVÉNEMENTS EXISTANTS ====== */
 amountForm.addEventListener('submit', (e)=>{ e.preventDefault(); startScanner(); });
@@ -782,9 +797,13 @@ payBtn.addEventListener('click', async () => {
 
     formMsg.textContent   = 'Achat enregistré ✔️';
     formMsg.className     = 'success';
-    scanStatus.textContent = 'Prêt pour un autre client…';
+    scanStatus.textContent = 'Encaissement terminé. Retournez en arrière pour un nouveau client.';
     beep();
 
+    // 🔥 on coupe la caméra et le scanner,
+    // la carte client reste affichée
+    stopCameraStream();
+    
     // reset logique : pas de 2e encaissement, mais fiche client visible
     pendingClient = null;
     useBonus.checked = false;
