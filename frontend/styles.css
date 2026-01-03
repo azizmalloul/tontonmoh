@@ -363,3 +363,14 @@ input:focus{
 }
 
 
+#clientCard{
+  position: relative;
+}
+
+#adminBtn{
+  position: absolute;
+  top: 8px;     /* haut/bas */
+  right: 16px;  /* gauche/droite (0 = collé à droite) */
+}
+
+
