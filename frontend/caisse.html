@@ -96,6 +96,18 @@
         <input id="useBonus" type="checkbox" />
         Utiliser mon bonus maintenant
       </label>
+
+      <!-- 💶 Montant tendu / Montant à rendre -->
+      <div class="row" style="margin-top:10px">
+        <div style="flex:1; min-width:130px">
+          <label for="cashGiven">Montant tendu (€)</label>
+          <input id="cashGiven" type="number" step="0.01" min="0" />
+        </div>
+        <div style="flex:1; min-width:130px">
+          <label for="cashChange">Montant à rendre (€)</label>
+          <input id="cashChange" type="number" step="0.01" min="0" readonly />
+        </div>
+      </div>
       
       <div class="row" style="margin-top:10px">
         <button id="payBtn" class="btn" type="button">Encaisser</button>
@@ -194,6 +206,10 @@ let pendingClient  = null;
 const clientCurrentAmount = document.getElementById('clientCurrentAmount');
 let currentAmountCents = 0;   // montant de cet achat
 
+// 💶 nouveaux champs
+const cashGivenInput  = document.getElementById('cashGiven');
+const cashChangeInput = document.getElementById('cashChange');
+
 // conteneurs pour pouvoir les cacher / réafficher
 const useBonusContainer = useBonus.closest('label');   // le label .checkbox
 const payBtnRow         = payBtn.parentElement;        // le <div class="row"> autour d’Encaisser
@@ -255,6 +271,43 @@ function validAmount(){
   const v = parseFloat(String(amountInput.value).replace(',','.'));
   return (v && v>0) ? Math.round(v*100) : 0;
 }
+
+function updateChangePreview(){
+  if (!cashGivenInput || !cashChangeInput) return;
+  if (!currentAmountCents || !pendingClient){
+    cashChangeInput.value = '';
+    return;
+  }
+
+  // Montant tendu dans la petite case
+  const v = parseFloat(String(cashGivenInput.value).replace(',', '.'));
+  if (!v || v <= 0){
+    cashChangeInput.value = '';
+    return;
+  }
+  const tenderedCents = Math.round(v * 100);
+
+  // Bonus dispo si coché
+  let bonusAvail = 0;
+  if (useBonus.checked){
+    bonusAvail = Number(pendingClient.bonus_cents || 0);
+  }
+
+  // Bonus qu'on applique au maximum = min(bonus dispo, montant achat)
+  const bonusUsed = Math.min(bonusAvail, currentAmountCents);
+
+  // Ce que le client doit réellement payer
+  const toPayCents = currentAmountCents - bonusUsed;
+
+  // Change à rendre
+  const changeCents = tenderedCents - toPayCents;
+
+  // Pas de montant négatif : au pire 0
+  const safeChange = Math.max(0, changeCents);
+
+  cashChangeInput.value = (safeChange / 100).toFixed(2); // ex: 3.50
+}
+
 function showOverlay(text, opts = {}){
   const { duration = 3000, onHide } = opts;
   overlayName.textContent = text;
@@ -390,6 +443,8 @@ function showClient(cli){
   // ➜ on ré-affiche la case bonus + le bouton Encaisser
   if (useBonusContainer) useBonusContainer.style.display = 'flex';
   if (payBtnRow)         payBtnRow.style.display = 'flex';
+  // 🔄 met à jour "Montant à rendre" si un montant tendu est déjà saisi
+  updateChangePreview();  
 }
 
 
@@ -410,6 +465,8 @@ async function startScanner(opts = {}) {
   }
   currentAmountCents = amountCents;                      // on garde ce montant
   clientCurrentAmount.textContent = euros(amountCents);  // pré-affiche dans la fiche client
+  updateChangePreview(); 
+
 
 
   if (!keepUI) {
@@ -623,6 +680,7 @@ manualBtn.addEventListener('click', async () => {
   }
   currentAmountCents = amount_cents;
   clientCurrentAmount.textContent = euros(currentAmountCents);
+  updateChangePreview();
 
   try {
     const now  = Date.now();
@@ -819,6 +877,15 @@ payBtn.addEventListener('click', async () => {
   }
 });
 
+// 💶 recalculer le rendu quand on tape le montant tendu
+if (cashGivenInput){
+  cashGivenInput.addEventListener('input', updateChangePreview);
+}
+
+// 💶 et aussi quand on coche / décoche "Utiliser mon bonus"
+if (useBonus){
+  useBonus.addEventListener('change', updateChangePreview);
+}
 
 
 // Pré-remplir dernier montant
