@@ -98,7 +98,7 @@
       </label>
 
       <!-- 💶 Montant tendu / Montant à rendre -->
-      <div class="row" style="margin-top:10px">
+      <div id="cashRow" class="row" style="margin-top:10px">
         <div style="flex:1; min-width:130px">
           <label for="cashGiven">Montant tendu (€)</label>
           <input id="cashGiven" type="number" step="0.01" min="0" />
@@ -108,6 +108,7 @@
           <input id="cashChange" type="number" step="0.01" min="0" readonly />
         </div>
       </div>
+
       
       <div class="row" style="margin-top:10px">
         <button id="payBtn" class="btn" type="button">Encaisser</button>
@@ -209,6 +210,7 @@ let currentAmountCents = 0;   // montant de cet achat
 // 💶 nouveaux champs
 const cashGivenInput  = document.getElementById('cashGiven');
 const cashChangeInput = document.getElementById('cashChange');
+const cashRow = document.getElementById('cashRow');
 
 // conteneurs pour pouvoir les cacher / réafficher
 const useBonusContainer = useBonus.closest('label');   // le label .checkbox
@@ -443,8 +445,17 @@ function showClient(cli){
   // ➜ on ré-affiche la case bonus + le bouton Encaisser
   if (useBonusContainer) useBonusContainer.style.display = 'flex';
   if (payBtnRow)         payBtnRow.style.display = 'flex';
-  // 🔄 met à jour "Montant à rendre" si un montant tendu est déjà saisi
-  updateChangePreview();  
+
+  // ➜ on ré-affiche la ligne "Montant tendu / Montant à rendre"
+  if (cashRow) cashRow.style.display = 'flex';
+
+  // reset des champs espèces
+  if (cashGivenInput)  cashGivenInput.value  = '';
+  if (cashChangeInput) cashChangeInput.value = '';
+
+  // 🔄 recalcul au cas où
+  updateChangePreview();
+ 
 }
 
 
@@ -869,6 +880,14 @@ payBtn.addEventListener('click', async () => {
     // ➜ on masque la case "Utiliser mon bonus" et le bouton Encaisser
     if (useBonusContainer) useBonusContainer.style.display = 'none';
     if (payBtnRow)         payBtnRow.style.display = 'none';
+
+    // ➜ on masque aussi "Montant tendu / Montant à rendre"
+    if (cashRow) cashRow.style.display = 'none';
+
+    // et on vide les champs
+    if (cashGivenInput)  cashGivenInput.value  = '';
+    if (cashChangeInput) cashChangeInput.value = '';
+
 
 
   } catch (e) {
