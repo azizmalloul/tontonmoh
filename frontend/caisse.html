@@ -278,13 +278,17 @@ function updateChangePreview(){
   if (!cashGivenInput || !cashChangeInput) return;
   if (!currentAmountCents || !pendingClient){
     cashChangeInput.value = '';
+    cashChangeInput.classList.remove('negatif');
+    cashGivenInput.classList.remove('negatif');
     return;
   }
 
   // Montant tendu dans la petite case
   const v = parseFloat(String(cashGivenInput.value).replace(',', '.'));
-  if (!v || v <= 0){
+  if (!v && v !== 0){
     cashChangeInput.value = '';
+    cashChangeInput.classList.remove('negatif');
+    cashGivenInput.classList.remove('negatif');
     return;
   }
   const tenderedCents = Math.round(v * 100);
@@ -295,20 +299,24 @@ function updateChangePreview(){
     bonusAvail = Number(pendingClient.bonus_cents || 0);
   }
 
-  // Bonus qu'on applique au maximum = min(bonus dispo, montant achat)
+  // Bonus utilisé (max = montant achat)
   const bonusUsed = Math.min(bonusAvail, currentAmountCents);
 
-  // Ce que le client doit réellement payer
+  // Montant réellement à payer
   const toPayCents = currentAmountCents - bonusUsed;
 
-  // Change à rendre
+  // Change à rendre (peut être NEGATIF)
   const changeCents = tenderedCents - toPayCents;
 
-  // Pas de montant négatif : au pire 0
-  const safeChange = Math.max(0, changeCents);
+  // affichage brut (ex: -3.70 si le client doit encore 3,70 €)
+  cashChangeInput.value = (changeCents / 100).toFixed(2);
 
-  cashChangeInput.value = (safeChange / 100).toFixed(2); // ex: 3.50
+  // style rouge si montant NEGATIF
+  const isNegative = changeCents < 0;
+  cashChangeInput.classList.toggle('negatif', isNegative);
+  cashGivenInput.classList.toggle('negatif', isNegative);
 }
+
 
 function showOverlay(text, opts = {}){
   const { duration = 3000, onHide } = opts;
