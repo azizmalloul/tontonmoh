@@ -171,6 +171,7 @@ const CASHIER_ID = 'cash_001';
 const LS_CAM_ID = 'tm_camera_id';
 const LS_LAST_AMOUNT = 'tm_last_amount';
 const COOLDOWN_MS = 15000;
+const LS_LAST_RECEIPT = 'tm_last_receipt';
 
 /* ====== ELÉMENTS ====== */
 const formSection = document.getElementById('formSection');
@@ -239,6 +240,52 @@ const adminBonus   = document.getElementById('adminBonus');
 const adminReason  = document.getElementById('adminReason');
 const adminMsg     = document.getElementById('adminMsg');
 const adminTxList  = document.getElementById('adminTxList');
+
+// 🧾 effacer le dernier reçu mémorisé
+function clearLastReceipt() {
+  try { localStorage.removeItem(LS_LAST_RECEIPT); } catch (_) {}
+}
+
+// 🧾 restaurer le dernier reçu après un refresh
+function restoreLastReceipt() {
+  try {
+    const raw = localStorage.getItem(LS_LAST_RECEIPT);
+    if (!raw) return;
+
+    const r = JSON.parse(raw);
+    if (!r.client || !r.client.id) return;
+
+    currentClient      = r.client;
+    pendingClient      = null;
+    currentAmountCents = r.amount_cents || 0;
+
+    // on affiche directement la section 2 + carte client
+    formSection.classList.add('hidden');
+    scanSection.classList.remove('hidden');
+    stopCameraStream();      // par sécurité, caméra coupée
+    collapseScanBox();       // on replie le cadre caméra
+
+    clientCard.style.display = 'block';
+    clientName.textContent   = `${currentClient.first_name || ''} ${currentClient.last_name || ''}`.trim() || 'Client';
+    clientCode.textContent   = currentClient.code_public || '';
+    clientTotal.textContent  = euros(currentClient.total_spent_cents || 0);
+    clientBonus.textContent  = euros(currentClient.bonus_cents || 0);
+    clientCurrentAmount.textContent = euros(currentAmountCents);
+
+    formMsg.textContent   = 'Achat enregistré ✔️';
+    formMsg.className     = 'success';
+    scanStatus.textContent = 'Encaissement terminé. Retournez en arrière pour un nouveau client.';
+
+    // après encaissement : on cache bonus / encaisser / espèces
+    if (useBonusContainer) useBonusContainer.style.display = 'none';
+    if (payBtnRow)         payBtnRow.style.display = 'none';
+    if (cashRow)           cashRow.style.display = 'none';
+
+  } catch (e) {
+    console.error('restoreLastReceipt', e);
+  }
+}
+
 
 let isSwitching = false;
 let cameraWarmed = false;
@@ -624,8 +671,11 @@ function stopScanner(fully=true){
 }
 
 
-/* ====== ÉVÉNEMENTS EXISTANTS ====== */
-amountForm.addEventListener('submit', (e)=>{ e.preventDefault(); startScanner(); });
+amountForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  clearLastReceipt();   // 👉 on oublie l’ancien ticket
+  startScanner();
+});
 
 switchBtn.addEventListener('click', async () => {
   if (isSwitching) return;
@@ -678,13 +728,17 @@ switchBtn.addEventListener('click', async () => {
   }
 });
 
-backBtn.addEventListener('click', ()=> stopScanner(true));
+backBtn.addEventListener('click', () => {
+  clearLastReceipt();   // 👉 on oublie le ticket
+  stopScanner(true);
+});
 
 clientsBtn.addEventListener('click', () => {
   window.location.href = './liste_clients.html';
 });
 
 manualBtn.addEventListener('click', async () => {
+  clearLastReceipt();   // 👉 nouveau passage, on efface l’ancien
   const code = (codeInput.value || '').trim().toUpperCase();
   if (!code) {
     uiMsg.textContent = 'Entrez un code.';
@@ -877,6 +931,26 @@ payBtn.addEventListener('click', async () => {
     scanStatus.textContent = 'Encaissement terminé. Retournez en arrière pour un nouveau client.';
     beep();
 
+    // 🧾 Mémoriser ce reçu pour le retrouver après un refresh
+    try {
+      const receipt = {
+        client: {
+          id: pendingClient.id,
+          first_name: pendingClient.first_name,
+          last_name: pendingClient.last_name,
+          code_public: pendingClient.code_public,
+          total_spent_cents: pendingClient.total_spent_cents,
+          bonus_cents: pendingClient.bonus_cents
+        },
+        amount_cents,
+        used_bonus_cents: usedBonus,
+        paid_cents: paid,
+        earned_cents: earned
+      };
+      localStorage.setItem(LS_LAST_RECEIPT, JSON.stringify(receipt));
+    } catch (_) {}
+
+
     // 🔥 on coupe la caméra et le scanner,
     // la carte client reste affichée
     stopCameraStream();
@@ -918,6 +992,9 @@ if (useBonus){
 // Pré-remplir dernier montant
 const last = localStorage.getItem(LS_LAST_AMOUNT);
 if (last) amountInput.value = last;
+// 🧾 Si un reçu a été mémorisé, on le ré-affiche
+restoreLastReceipt();
+
 </script>
 </body>
 </html>
