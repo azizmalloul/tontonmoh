@@ -846,6 +846,7 @@ adminForm.addEventListener('submit', async (e) => {
   try {
     if (!currentClient) return;
     adminMsg.textContent = 'Enregistrement…';
+    adminMsg.className   = 'muted';
 
     // Champ "Cumul achats (en €)" -> total_spent_cents
     const eurosTotalStr = String(adminBalance.value || '0').replace(',', '.');
@@ -861,22 +862,22 @@ adminForm.addEventListener('submit', async (e) => {
       Math.round(parseFloat(eurosBonusStr || '0') * 100)
     );
 
-    // --- détecter ce qui a changé par rapport aux valeurs de départ ---
-    const changedCumul    = (totalCents !== adminBaseTotalCents);
-    const changedCagnotte = (bonusCents !== adminBaseBonusCents);
+    // 🔍 détecter ce qui a changé par rapport aux valeurs de base
+    const cumulChanged    = totalCents !== adminBaseTotalCents;
+    const cagnotteChanged = bonusCents !== adminBaseBonusCents;
 
-    let autoReason = '';
-    if (changedCumul && changedCagnotte) {
-      autoReason = 'Ajustement cumul/cagnotte';
-    } else if (changedCumul) {
-      autoReason = 'Ajustement cumul';
-    } else if (changedCagnotte) {
-      autoReason = 'Ajustement cagnotte';
+    let autoReason = '[ADMIN] ';
+    if (cumulChanged && cagnotteChanged) {
+      autoReason += 'Ajustement cumul/cagnotte';
+    } else if (cumulChanged) {
+      autoReason += 'Ajustement cumul';
+    } else if (cagnotteChanged) {
+      autoReason += 'Ajustement cagnotte';
     } else {
-      autoReason = 'Ajustement'; // rien n'a bougé, cas rare
+      autoReason += 'Ajustement sans changement';
     }
 
-    // appel API admin avec le motif auto
+    // Appel API avec le motif auto
     const res = await adminAdjustBalance(
       currentClient.id,
       totalCents,
@@ -886,8 +887,12 @@ adminForm.addEventListener('submit', async (e) => {
     );
 
     // Mettre à jour les valeurs de base pour le prochain ajustement
-    adminBaseTotalCents = Number(res.total_spent_cents ?? totalCents);
-    adminBaseBonusCents = Number(res.bonus_cents ?? bonusCents);
+    adminBaseTotalCents = Number(
+      res.total_spent_cents != null ? res.total_spent_cents : totalCents
+    );
+    adminBaseBonusCents = Number(
+      res.bonus_cents != null ? res.bonus_cents : bonusCents
+    );
 
     // Mise à jour du client en mémoire
     currentClient.total_spent_cents = adminBaseTotalCents;
@@ -901,20 +906,29 @@ adminForm.addEventListener('submit', async (e) => {
     adminBalance.value = (currentClient.total_spent_cents / 100).toFixed(2);
     adminBonus.value   = (currentClient.bonus_cents / 100).toFixed(2);
 
-    // 🔄 recharger la liste des dernières opérations pour voir la ligne [ADMIN]
+    // 🟦 recharger la liste des dernières opérations pour voir la ligne [ADMIN]
     const full2 = await fetchClientFull(currentClient.id);
-    adminTxList.innerHTML = (full2.transactions || []).map(t => {
-      const dt  = (t.created_at || '').replace('T',' ').replace('Z','');
-      const amt = (Number(t.amount_cents || 0) / 100).toFixed(2) + ' €';
-      return `<p class="muted"><b>${dt}</b> — ${t.status} — ${amt} — <i>${t.note || ''}</i></p>`;
-    }).join('') || '<p class="muted'>Aucune opération récente.</p>";
+    adminTxList.innerHTML =
+      (full2.transactions || [])
+        .map((t) => {
+          const dt = (t.created_at || '')
+            .replace('T', ' ')
+            .replace('Z', '');
+          const amt =
+            (Number(t.amount_cents || 0) / 100).toFixed(2) + ' €';
+          return `<p class="muted"><b>${dt}</b> — ${t.status} — ${amt} — <i>${t.note || ''}</i></p>`;
+        })
+        .join('') || '<p class="muted">Aucune opération récente.</p>';
 
     adminMsg.textContent = 'Ajustement enregistré ✔️';
+    adminMsg.className   = 'success';
   } catch (err) {
     console.error(err);
     adminMsg.textContent = 'Erreur: ' + err.message;
+    adminMsg.className   = 'error';
   }
 });
+
 
 
 
