@@ -144,8 +144,9 @@
         <input id="adminBonus" type="number" step="0.01" min="0" />
       </div>
       <div style="grid-column:1/-1" class="row">
-        <input id="adminReason" type="text" placeholder="Motif de l'ajustement (ex: cadeau remis / correction saisie)" style="flex:1"/>
-        <button id="adminSave" class="btn" type="submit">Enregistrer l’ajustement</button>
+        <button id="adminSave" class="btn" type="submit" style="width:100%">
+          Enregistrer l’ajustement
+        </button>
       </div>
       <p id="adminMsg" class="muted"></p>
     </form>
@@ -227,6 +228,9 @@ const lastScan = new Map();
 const ADMIN_KEY_LS = 'aziz';        // on mémorise la clé admin localement
 let currentClient = null;           // client courant
 
+let adminBaseTotalCents = 0;
+let adminBaseBonusCents = 0;
+
 const adminBtn     = document.getElementById('adminBtn');
 const adminPanel   = document.getElementById('adminPanel');
 const adminClose   = document.getElementById('adminClose');
@@ -235,7 +239,7 @@ const adminName    = document.getElementById('adminName');
 const adminCode    = document.getElementById('adminCode');
 const adminBalance = document.getElementById('adminBalance');
 const adminBonus   = document.getElementById('adminBonus');
-const adminReason  = document.getElementById('adminReason');
+
 const adminMsg     = document.getElementById('adminMsg');
 const adminTxList  = document.getElementById('adminTxList');
 
@@ -808,6 +812,9 @@ adminBtn.addEventListener('click', async ()=>{
 
     const balCents   = Number(full.balance?.total_spent_cents || 0);
     const bonusCents = Number(full.balance?.bonus_cents || 0);
+
+    adminBaseTotalCents = balCents;
+    adminBaseBonusCents = bonusCents;
     
     adminBalance.value = (balCents / 100).toFixed(2);
     adminBonus.value   = (bonusCents / 100).toFixed(2);
@@ -854,27 +861,53 @@ adminForm.addEventListener('submit', async (e) => {
       Math.round(parseFloat(eurosBonusStr || '0') * 100)
     );
 
-    const reason = adminReason.value || '';
+    // --- détecter ce qui a changé par rapport aux valeurs de départ ---
+    const changedCumul    = (totalCents !== adminBaseTotalCents);
+    const changedCagnotte = (bonusCents !== adminBaseBonusCents);
 
+    let autoReason = '';
+    if (changedCumul && changedCagnotte) {
+      autoReason = 'Ajustement cumul/cagnotte';
+    } else if (changedCumul) {
+      autoReason = 'Ajustement cumul';
+    } else if (changedCagnotte) {
+      autoReason = 'Ajustement cagnotte';
+    } else {
+      autoReason = 'Ajustement'; // rien n'a bougé, cas rare
+    }
+
+    // appel API admin avec le motif auto
     const res = await adminAdjustBalance(
       currentClient.id,
       totalCents,
       bonusCents,
-      reason,
+      autoReason,
       CASHIER_ID
     );
 
+    // Mettre à jour les valeurs de base pour le prochain ajustement
+    adminBaseTotalCents = Number(res.total_spent_cents ?? totalCents);
+    adminBaseBonusCents = Number(res.bonus_cents ?? bonusCents);
+
     // Mise à jour du client en mémoire
-    currentClient.total_spent_cents = Number(res.total_spent_cents ?? totalCents);
-    currentClient.bonus_cents       = Number(res.bonus_cents ?? bonusCents);
+    currentClient.total_spent_cents = adminBaseTotalCents;
+    currentClient.bonus_cents       = adminBaseBonusCents;
 
     // MAJ UI caisse
     clientTotal.textContent = euros(currentClient.total_spent_cents);
     clientBonus.textContent = euros(currentClient.bonus_cents);
 
-    // MAJ UI admin
+    // MAJ UI admin (inputs)
     adminBalance.value = (currentClient.total_spent_cents / 100).toFixed(2);
     adminBonus.value   = (currentClient.bonus_cents / 100).toFixed(2);
+
+    // 🔄 recharger la liste des dernières opérations pour voir la ligne [ADMIN]
+    const full2 = await fetchClientFull(currentClient.id);
+    adminTxList.innerHTML = (full2.transactions || []).map(t => {
+      const dt  = (t.created_at || '').replace('T',' ').replace('Z','');
+      const amt = (Number(t.amount_cents || 0) / 100).toFixed(2) + ' €';
+      return `<p class="muted"><b>${dt}</b> — ${t.status} — ${amt} — <i>${t.note || ''}</i></p>`;
+    }).join('') || '<p class="muted'>Aucune opération récente.</p>";
 
     adminMsg.textContent = 'Ajustement enregistré ✔️';
   } catch (err) {
@@ -882,6 +915,7 @@ adminForm.addEventListener('submit', async (e) => {
     adminMsg.textContent = 'Erreur: ' + err.message;
   }
 });
+
 
 
 payBtn.addEventListener('click', async () => {
