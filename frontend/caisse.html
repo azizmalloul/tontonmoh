@@ -318,6 +318,52 @@ function euros(c){
     + ' €';
 }
 
+// --- Helpers pour affichage historique façon "Mon compte" ---
+
+// QR / RFID / ADMIN en fonction de la note
+function txMode(tx) {
+  const note = (tx.note || '').toLowerCase();
+  if (note.includes('rfid'))   return 'RFID';
+  if (note.includes('[admin')) return 'ADMIN';
+  return 'QR';
+}
+
+// même règle que sur mon-compte (10 %)
+const BONUS_RATE = 0.10;
+function bonusForTx(amount_cents) {
+  return Math.round(Number(amount_cents || 0) * BONUS_RATE);
+}
+
+// Une ligne "bloc gris" (2 lignes) pour une transaction
+function txRow(tx){
+  const sign = tx.status === 'OK' ? '+' : '±';
+  const dt   = new Date(tx.created_at || tx.createdAt || tx.ts || Date.now());
+  const pad  = n => String(n).padStart(2, '0');
+
+  const date = `${pad(dt.getDate())}/${pad(dt.getMonth()+1)}/${dt.getFullYear()}`;
+  const time = `${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`;
+
+  const mode      = txMode(tx);                       // QR / RFID / ADMIN
+  const amountStr = `${sign} ${euros(tx.amount_cents)}`;
+  const bonusStr  = euros(bonusForTx(tx.amount_cents));
+  const note      = tx.note ? ` — ${tx.note}` : '';
+
+  return `
+    <tr class="tx-row">
+      <td colspan="3">
+        <div class="tx-box">
+          <div class="tx-grid">
+            <div class="tx-date">${date}</div>
+            <div class="tx-mode">${mode}</div>
+            <div class="tx-amount">${amountStr} / ${bonusStr}</div>
+            <div class="tx-subline">${time}${note}</div>
+          </div>
+        </div>
+      </td>
+    </tr>`;
+}
+
+
 function validAmount(){
   const v = parseFloat(String(amountInput.value).replace(',','.'));
   return (v && v>0) ? Math.round(v*100) : 0;
@@ -820,11 +866,28 @@ adminBtn.addEventListener('click', async ()=>{
     adminBonus.value   = (bonusCents / 100).toFixed(2);
 
 
-    adminTxList.innerHTML = (full.transactions||[]).map(t=>{
-      const dt = (t.created_at||'').replace('T',' ').replace('Z','');
-      const amt = (Number(t.amount_cents||0)/100).toFixed(2)+' €';
-      return `<p class="muted"><b>${dt}</b> — ${t.status} — ${amt} — <i>${t.note||''}</i></p>`;
-    }).join('') || '<p class="muted">Aucune opération récente.</p>';
+    const txs = full.transactions || [];
+    if (txs.length) {
+      adminTxList.innerHTML = `
+        <div style="overflow:auto">
+          <table class="history">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Source</th>
+                <th>Montant / Cagnotte</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${txs.map(txRow).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    } else {
+      adminTxList.innerHTML = '<p class="muted">Aucune opération récente.</p>';
+    }
+
 
     adminMsg.textContent = '';
     scanSection.classList.add('hidden');
@@ -908,17 +971,28 @@ adminForm.addEventListener('submit', async (e) => {
 
     // 🟦 recharger la liste des dernières opérations pour voir la ligne [ADMIN]
     const full2 = await fetchClientFull(currentClient.id);
-    adminTxList.innerHTML =
-      (full2.transactions || [])
-        .map((t) => {
-          const dt = (t.created_at || '')
-            .replace('T', ' ')
-            .replace('Z', '');
-          const amt =
-            (Number(t.amount_cents || 0) / 100).toFixed(2) + ' €';
-          return `<p class="muted"><b>${dt}</b> — ${t.status} — ${amt} — <i>${t.note || ''}</i></p>`;
-        })
-        .join('') || '<p class="muted">Aucune opération récente.</p>';
+    const txs2 = full2.transactions || [];
+    if (txs2.length) {
+      adminTxList.innerHTML = `
+        <div style="overflow:auto">
+          <table class="history">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Source</th>
+                <th>Montant / Cagnotte</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${txs2.map(txRow).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    } else {
+      adminTxList.innerHTML = '<p class="muted">Aucune opération récente.</p>';
+    }
+
 
     adminMsg.textContent = 'Ajustement enregistré ✔️';
     adminMsg.className   = 'success';
