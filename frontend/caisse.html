@@ -866,7 +866,7 @@ adminForm.addEventListener('submit', async (e) => {
     const cumulChanged    = totalCents !== adminBaseTotalCents;
     const cagnotteChanged = bonusCents !== adminBaseBonusCents;
 
-    let autoReason = '[ADMIN] ';
+    let autoReason = '';
     if (cumulChanged && cagnotteChanged) {
       autoReason += 'Ajustement cumul/cagnotte';
     } else if (cumulChanged) {
