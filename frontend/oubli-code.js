@@ -60,3 +60,20 @@ form.addEventListener("submit", async (e) => {
     msg.className = "error";
   }
 });
+
+// petit effet "flash / écrasement" comme ailleurs
+function addButtonPressFlash(el) {
+  if (!el) return;
+  el.addEventListener('click', () => {
+    el.classList.add('pressed');
+    setTimeout(() => {
+      el.classList.remove('pressed');
+    }, 100); // ~0.1s
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const forgotBtn = document.getElementById('forgotBtn');
+  addButtonPressFlash(forgotBtn);
+});
+
