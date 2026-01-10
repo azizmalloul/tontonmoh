@@ -1199,10 +1199,13 @@ payBtn.addEventListener('click', async () => {
         earned_cents: earned
       };
       localStorage.setItem(LS_LAST_RECEIPT, JSON.stringify(receipt));
+    } catch (_) {}
+    
+    try {
       // on n'a plus d'écran "en cours" : seulement le ticket
-      try { 
-        localStorage.removeItem(LS_PENDING_STATE); 
-      } catch (_) {}
+      localStorage.removeItem(LS_PENDING_STATE);
+    } catch (_) {}
+    
 
 
 
