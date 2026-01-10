@@ -394,18 +394,6 @@ input.negatif:focus{
   justify-content: center;
 }
 
-.icon-btn .info-icon {
-  display: inline-block;
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  border: 1px solid rgba(0,0,0,0.2);
-  font-size: 14px;
-  line-height: 20px;
-  text-align: center;
-  font-weight: 600;
-}
-
 /* Popin */
 .info-modal {
   position: fixed;
@@ -471,4 +459,32 @@ input.negatif:focus{
   background: #b91c1c;                  /* rouge un peu plus foncé */
   transform: scale(0.9);                /* léger zoom arrière */
   box-shadow: 0 0 0 3px rgba(0,0,0,.15) inset; /* petit flash interne */
+}
+
+/* bouton "i" en cercle noir */
+.info-circle{
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #111111;      /* cercle noir */
+  color: #ffffff;           /* "i" blanc */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 18px;
+  font-weight: 700;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.25);
+  transition: transform 0.08s ease,
+              box-shadow 0.08s ease,
+              background-color 0.08s ease,
+              opacity 0.08s ease;
+}
+
+/* petit écrasement quand on appuie */
+.info-circle:active{
+  transform: scale(0.9);
+  background: #000000;
+  box-shadow: 0 0 0 3px rgba(0,0,0,.2) inset;
+  opacity: 0.9;
 }
