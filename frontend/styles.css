@@ -83,12 +83,27 @@ input:focus{
   border-radius:12px;
   font-weight:700;
   cursor:pointer;
+
+  /* animation comme les boutons ronds */
+  transition: transform 0.08s ease,
+              box-shadow 0.08s ease,
+              background-color 0.08s ease,
+              opacity 0.08s ease;
 }
 
 .btn:disabled{
   opacity:.6;
   cursor:not-allowed;
 }
+
+/* état "écrasé" forcé par JS pour le bouton Télécharger le QR */
+.btn.pressed{
+  transform: scale(0.94);
+  box-shadow: 0 0 0 3px rgba(0,0,0,.18) inset;
+  opacity: 0.9;
+  background:#237623; /* un poil plus foncé que --primary */
+}
+
 
 .muted{color:var(--muted)}
 .success{color:#066e2e}
