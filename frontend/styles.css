@@ -227,21 +227,31 @@ input:focus{
 
 
 
-.icon-btn {
-  width: 44px;
-  height: 44px;
+/* Boutons ronds (i et X) */
+.icon-btn{
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
   border: none;
   background: transparent;
-  padding: 6px;
-  border-radius: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
   cursor: pointer;
+
+  /* animation commune */
+  transition: transform 0.08s ease,
+              box-shadow 0.08s ease,
+              background-color 0.08s ease,
+              opacity 0.08s ease;
 }
 
-.icon-btn:active {
-  transform: scale(0.92);
+/* effet d’écrasement / flash pour tous les boutons ronds */
+.icon-btn:active{
+  transform: scale(0.86);
+  box-shadow: 0 0 0 3px rgba(0,0,0,.18) inset; 
+  opacity: 0.9;
 }
 
 .icon-img {
@@ -383,16 +393,6 @@ input.negatif:focus{
   outline-color: var(--danger);
 }
 
-.icon-btn {
-  border: none;
-  background: transparent;
-  padding: 4px 6px;
-  border-radius: 999px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
 
 /* Popin */
 .info-modal {
@@ -454,32 +454,23 @@ input.negatif:focus{
 }
 
 
-/* effet visuel quand on appuie */
-.close-circle:active{
-  background: #b91c1c;                  /* rouge un peu plus foncé */
-  transform: scale(0.9);                /* léger zoom arrière */
-  box-shadow: 0 0 0 3px rgba(0,0,0,.15) inset; /* petit flash interne */
+/* bouton i : cercle noir */
+.info-circle{
+  background:#111111;
+  color:#ffffff;
+  font-size:18px;
+  font-weight:700;
 }
 
-/* bouton "i" en cercle noir */
-.info-circle{
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: #111111;      /* cercle noir */
-  color: #ffffff;           /* "i" blanc */
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  font-size: 18px;
-  font-weight: 700;
-  box-shadow: 0 0 0 1px rgba(0,0,0,.25);
-  transition: transform 0.08s ease,
-              box-shadow 0.08s ease,
-              background-color 0.08s ease,
-              opacity 0.08s ease;
+/* bouton X : cercle rouge */
+.close-circle{
+  background:#dc2626;
+  color:#ffffff;
+  font-size:16px;
+  font-weight:700;
 }
+
+
 
 /* petit écrasement quand on appuie */
 .info-circle:active{
