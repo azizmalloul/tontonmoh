@@ -289,11 +289,20 @@
             qrFinal.src = dataUrl;
             dlQR.href   = dataUrl;
             dlQR.style.display = 'inline-block';
+        
+            // petit effet "écrasement" comme les autres boutons
+            dlQR.addEventListener('click', () => {
+              dlQR.classList.add('pressed');
+              setTimeout(() => {
+                dlQR.classList.remove('pressed');
+              }, 100);
+            });
           })
           .catch((e)=>{
             console.error(e);
             qrRaw.innerHTML = '<p class="error">Impossible de générer le QR.</p>';
           });
+
 
       }catch(err){
         console.error(err);
