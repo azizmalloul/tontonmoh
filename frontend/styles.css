@@ -450,5 +450,16 @@ input.negatif:focus{
   padding: 0;
   font-size: 16px;
   font-weight: 700;
+
+  /* animation douce */
+  transition: transform 0.08s ease, 
+              background-color 0.08s ease, 
+              box-shadow 0.08s ease;
 }
 
+/* effet visuel quand on appuie */
+.close-circle:active{
+  background: #b91c1c;                  /* rouge un peu plus foncé */
+  transform: scale(0.9);                /* léger zoom arrière */
+  box-shadow: 0 0 0 3px rgba(0,0,0,.15) inset; /* petit flash interne */
+}
