@@ -83,8 +83,9 @@
 
       
       <p class="muted kv">Cumul achats : <b id="clientTotal">0,00 €</b></p>
-      <p class="muted kv">Ancien solde cagnotte : <b id="clientOldBonus">0,00 €</b></p>
-      <p class="muted kv">Nouveau solde cagnotte : <b id="clientBonus">0,00 €</b></p>
+      <p class="muted kv">
+        Solde cagnotte : <b id="clientBonus">0,00 €</b>
+      </p>
 
       <p class="kv">
         Montant de cet achat : <b id="clientCurrentAmount">0,00 €</b>
@@ -202,7 +203,7 @@ const clientsBtn   = document.getElementById('clientsBtn');
 const clientTotal  = document.getElementById('clientTotal');
   
 const clientBonus  = document.getElementById('clientBonus');
-const clientOldBonus = document.getElementById('clientOldBonus');
+
 const useBonus     = document.getElementById('useBonus');
 const payBtn       = document.getElementById('payBtn');
 let pendingClient  = null;
@@ -281,7 +282,7 @@ function restoreLastReceipt() {
       const oldB   = Math.max(0, newB - earned + used);
 
       clientTotal.textContent      = euros(currentClient.total_spent_cents || 0);
-      clientOldBonus.textContent   = euros(oldB);   // ancien solde
+      
       clientBonus.textContent      = euros(newB);   // nouveau solde
       clientCurrentAmount.textContent = euros(currentAmountCents);
 
@@ -319,7 +320,7 @@ function restoreLastReceipt() {
       clientName.textContent   = `${currentClient.first_name || ''} ${currentClient.last_name || ''}`.trim() || 'Client';
       clientCode.textContent   = currentClient.code_public || '';
       clientTotal.textContent      = euros(currentClient.total_spent_cents || 0);
-      clientOldBonus.textContent   = euros(currentClient.bonus_cents || 0); 
+      
       clientBonus.textContent      = euros(currentClient.bonus_cents || 0); 
       clientCurrentAmount.textContent = euros(currentAmountCents);
 
@@ -647,7 +648,7 @@ function showClient(cli){
   clientCode.textContent = cli.code_public || '';
 
   clientTotal.textContent    = euros(cli.total_spent_cents || 0);
-  clientOldBonus.textContent = euros(cli.bonus_cents || 0); 
+ 
   clientBonus.textContent    = euros(cli.bonus_cents || 0); 
 
   useBonus.checked = false;
@@ -1107,7 +1108,7 @@ adminForm.addEventListener('submit', async (e) => {
 
     // MAJ UI caisse
     clientTotal.textContent      = euros(currentClient.total_spent_cents);
-    clientOldBonus.textContent   = euros(currentClient.bonus_cents); // nouveau "ancien" de référence
+   
     clientBonus.textContent      = euros(currentClient.bonus_cents);
 
     // MAJ UI admin (inputs)
@@ -1180,7 +1181,7 @@ payBtn.addEventListener('click', async () => {
 
     // MAJ UI
     clientTotal.textContent    = euros(pendingClient.total_spent_cents);
-    clientOldBonus.textContent = euros(oldBonus);                 // ancien solde
+    
     clientBonus.textContent    = euros(pendingClient.bonus_cents); // nouveau solde
 
     const fullName = `${pendingClient.first_name || ''} ${pendingClient.last_name || ''}`.trim() || 'ce client';
