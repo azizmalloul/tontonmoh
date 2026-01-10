@@ -860,7 +860,11 @@ function stopScanner(fully=true){
 amountForm.addEventListener('submit', (e) => {
   e.preventDefault();
   clearLastReceipt();   // 👉 on oublie l’ancien ticket
-  startScanner();
+
+  // ⏱ on laisse le temps à .pressed de se voir
+  setTimeout(() => {
+    startScanner();
+  }, 100);
 });
 
 switchBtn.addEventListener('click', async () => {
