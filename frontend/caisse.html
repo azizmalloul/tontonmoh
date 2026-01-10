@@ -276,10 +276,9 @@ function restoreLastReceipt() {
       clientName.textContent   = `${currentClient.first_name || ''} ${currentClient.last_name || ''}`.trim() || 'Client';
       clientCode.textContent   = currentClient.code_public || '';
 
-      const used   = Number(r.used_bonus_cents || 0);
-      const earned = Number(r.earned_cents || 0);
+    
       const newB   = Number(currentClient.bonus_cents || 0);
-      const oldB   = Math.max(0, newB - earned + used);
+      
 
       clientTotal.textContent      = euros(currentClient.total_spent_cents || 0);
       
