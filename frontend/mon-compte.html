@@ -24,6 +24,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script>
     const API = 'https://tontonmoh-api.azizekarma.workers.dev';
+    const LS_LAST_RECEIPT = 'tm_last_receipt'; // dernier ticket mémorisé par la caisse
+
 
     const elContent = document.getElementById('content');
     const p = new URLSearchParams(location.search);
@@ -103,14 +105,39 @@
 
         const fullName = `${cli.first_name || ''} ${cli.last_name || ''}`.trim() || 'Client';
 
+        // === calcul ancien / nouveau solde cagnotte ===
+        const totalCents    = Number(cli.total_spent_cents || 0);
+        const newBonusCents = Number(cli.bonus_cents || 0); // nouveau solde = solde actuel
+        let   oldBonusCents = newBonusCents;                // par défaut, ancien = nouveau
+        
+        try {
+          const raw = localStorage.getItem(LS_LAST_RECEIPT);
+          if (raw) {
+            const r = JSON.parse(raw);
+            // vérifier que le ticket concerne bien ce client
+            if (r.client && (r.client.id === cli.id || r.client.code_public === cli.code_public)) {
+              const used   = Number(r.used_bonus_cents || 0); // bonus utilisé sur le dernier achat
+              const earned = Number(r.earned_cents || 0);     // bonus gagné sur le dernier achat
+              // bonus avant le dernier passage
+              oldBonusCents = newBonusCents - earned + used;
+              if (oldBonusCents < 0) oldBonusCents = 0;
+            }
+          }
+        } catch(e) {
+          console.error('Erreur calcul ancien solde cagnotte', e);
+        }
+        // ============================
+        
+
         // 3) HTML de la page (avec image finale + div cachée pour le QR brut)
         elContent.innerHTML = `
           <div class="grid">
             <div>
               <h2 style="margin-top:0">${fullName}</h2>
               <p class="muted kv">Code : <b id="codePublic">${cli.code_public}</b></p>
-              <p class="kv">Cumul achats : <b>${euros(cli.total_spent_cents || 0)}</b></p>
-              <p class="kv">Ma cagnotte : <b>${euros(cli.bonus_cents || 0)}</b></p>
+              <p class="kv">Cumul achats : <b>${euros(totalCents)}</b></p>
+              <p class="kv">Ancien solde cagnotte : <b>${euros(oldBonusCents)}</b></p>
+              <p class="kv">Nouveau solde cagnotte : <b>${euros(newBonusCents)}</b></p>
 
             </div>
 
