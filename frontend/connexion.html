@@ -89,7 +89,20 @@
 
     const form = document.getElementById('loginForm');
     const msg  = document.getElementById('formMsg');
+    const submitBtn = form.querySelector('button[type="submit"]');
 
+    function addButtonPressFlash(el) {
+      if (!el) return;
+      el.addEventListener('click', () => {
+        el.classList.add('pressed');
+        setTimeout(() => {
+          el.classList.remove('pressed');
+        }, 100);
+      });
+    }
+
+    addButtonPressFlash(submitBtn);
+    
     form.addEventListener('submit', async (e)=>{
       e.preventDefault();
       msg.textContent = '';
