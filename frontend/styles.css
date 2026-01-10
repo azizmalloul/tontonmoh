@@ -479,3 +479,11 @@ input.negatif:focus{
   box-shadow: 0 0 0 3px rgba(0,0,0,.2) inset;
   opacity: 0.9;
 }
+
+/* état "écrasé" forcé par JS pour le bouton i */
+.info-circle.pressed{
+  background: #000000;
+  transform: scale(0.8);
+  box-shadow: 0 0 0 3px rgba(0,0,0,.25) inset;
+  opacity: 0.85;
+}
