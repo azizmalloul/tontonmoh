@@ -22,13 +22,34 @@
     </p>
 
     <div class="row" style="justify-content:center; gap:1rem; flex-wrap:wrap;">
-      <a href="./inscription.html" class="btn">Créer un compte</a>
-      <a href="./connexion.html" class="btn outline">Se connecter</a>
+      <a href="./inscription.html" id="createBtn" class="btn">Créer un compte</a>
+      <a href="./connexion.html" id="loginBtn" class="btn outline">Se connecter</a>
     </div>
+
   </main>
 
   <footer class="container muted">
     <p>© 2025 Chez Tonton Moh — Fruits & Légumes, Villeurbanne</p>
   </footer>
+
+  <script>
+    // même helper que sur les autres pages
+    function addButtonPressFlash(el) {
+      if (!el) return;
+      el.addEventListener('click', () => {
+        el.classList.add('pressed');
+        setTimeout(() => {
+          el.classList.remove('pressed');
+        }, 100);
+      });
+    }
+  
+    const createBtn = document.getElementById('createBtn');
+    const loginBtn  = document.getElementById('loginBtn');
+  
+    addButtonPressFlash(createBtn);
+    addButtonPressFlash(loginBtn);
+  </script>
+
 </body>
 </html>
