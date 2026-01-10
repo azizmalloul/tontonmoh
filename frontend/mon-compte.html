@@ -18,6 +18,42 @@
         <p class="muted">Chargement…</p>
       </div>
     </section>
+
+    <!-- Popin d'informations compte fidélité -->
+    <div id="infoModal" class="info-modal">
+      <div class="info-modal-content card">
+        <h3>Infos sur votre compte fidélité</h3>
+
+        <p>
+          <strong>Date de création du compte :</strong>
+          <span id="infoCreated">—</span>
+        </p>
+
+        <hr class="muted" />
+
+        <h4>Comment ça fonctionne ?</h4>
+        <ul class="info-list">
+          <li>À chaque passage en caisse, votre <strong>QR code</strong> est scanné ou votre <strong>code à 6 caractères</strong> est saisi.</li>
+          <li>Vous pouvez aussi utiliser un <strong>badge RFID</strong> au lieu du QR code.</li>
+          <li>Chaque achat crédite un <strong>pourcentage en cagnotte</strong> (solde fidélité) calculé sur le montant payé.</li>
+          <li>Votre <strong>cumul d’achats</strong> est la somme de tous vos passages en caisse.</li>
+          <li>Vous pouvez utiliser votre <strong>solde cagnotte</strong> pour diminuer à tout moment le montant à payer.</li>
+          <li>Le caissier peut soit scanner le QR, soit taper le code à 6 caractères, soit badger votre carte RFID.</li>
+        </ul>
+
+        <hr class="muted" />
+
+        <h4>Vos derniers passages (résumé)</h4>
+        <div id="infoLastTx" class="kv">
+          <p class="muted">Chargement…</p>
+        </div>
+
+        <div style="margin-top:15px;display:flex;justify-content:flex-end">
+          <button id="infoClose" type="button" class="btn outline">Fermer</button>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <!-- qrcodejs pour générer le QR brut -->
@@ -28,6 +64,11 @@
 
 
     const elContent = document.getElementById('content');
+    const infoModal     = document.getElementById('infoModal');
+    const infoClose     = document.getElementById('infoClose');
+    const infoCreatedEl = document.getElementById('infoCreated');
+    const infoLastTxEl  = document.getElementById('infoLastTx');
+
     const p = new URLSearchParams(location.search);
     const codeFromUrl = (p.get('code') || '').trim().toUpperCase();
 
@@ -39,6 +80,15 @@
     }
 
     function showError(msg){ elContent.innerHTML = `<p class="error">${msg}</p>`; }
+
+    function formatDateTime(dt) {
+      if (!dt) return '—';
+      const d = new Date(dt);
+      const pad = (n) => String(n).padStart(2, '0');
+      const date = `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
+      const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      return `${date} à ${time}`;
+    }
 
     // --- Helpers pour affichage historique en 2 lignes ---
     
@@ -85,7 +135,29 @@
     }
 
 
-
+    function renderInfoLastTx(txs) {
+      if (!infoLastTxEl) return;
+      if (!txs || !txs.length) {
+        infoLastTxEl.innerHTML = '<p class="muted">Pas encore de passage enregistré.</p>';
+        return;
+      }
+      const pad = (n) => String(n).padStart(2, '0');
+      const html = `
+        <ul class="info-list">
+          ${txs.slice(0,5).map(tx => {
+            const d = new Date(tx.created_at || tx.createdAt || tx.ts || Date.now());
+            const date = `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
+            const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            const mode = txMode(tx);
+            const amount = euros(tx.amount_cents);
+            const bonus = euros(bonusForTx(tx.amount_cents));
+            return `<li><strong>${date} ${time}</strong> — ${mode} — ${amount} / ${bonus}</li>`;
+          }).join('')}
+        </ul>`;
+      infoLastTxEl.innerHTML = html;
+    }
+    
+    
 
     async function main(){
       if (!codeFromUrl){
@@ -130,10 +202,17 @@
 
         // 3) HTML de la page (avec image finale + div cachée pour le QR brut)
         elContent.innerHTML = `
-          <div class="grid">
-            <div>
+        <div class="grid">
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
               <h2 style="margin-top:0">${fullName}</h2>
-              <p class="muted kv">Code : <b id="codePublic">${cli.code_public}</b></p>
+              <!-- bouton infos -->
+              <button id="infoBtn" class="icon-btn" type="button" aria-label="Infos sur le compte fidélité">
+                <span class="info-icon">i</span>
+              </button>
+            </div>
+            <p class="muted kv">Code : <b id="codePublic">${cli.code_public}</b></p>
+
               <p class="kv">Cumul achats : <b>${euros(totalCents)}</b></p>
               <p class="kv">Ancien solde cagnotte : <b>${euros(oldBonusCents)}</b></p>
               <p class="kv">Nouveau solde cagnotte : <b>${euros(newBonusCents)}</b></p>
