@@ -198,7 +198,14 @@
           }
         }
 
-        
+        // remplir la popin : date de création + derniers passages
+        if (infoCreatedEl) {
+          const created = cli.created_at || cli.createdAt || cli.created || null;
+          infoCreatedEl.textContent = created ? formatDateTime(created) : 'Non disponible';
+        }
+
+        renderInfoLastTx(txs);
+
 
         // 3) HTML de la page (avec image finale + div cachée pour le QR brut)
         elContent.innerHTML = `
@@ -233,6 +240,15 @@
           </div>
 
           <hr class="muted">
+
+        // bouton "i" pour ouvrir la popin
+        const infoBtn = document.getElementById('infoBtn');
+        if (infoBtn && infoModal) {
+          infoBtn.addEventListener('click', () => {
+            infoModal.classList.add('show');
+          });
+        }
+
 
           <h3>Mes derniers passages</h3>
           ${
@@ -448,6 +464,20 @@
       ctx.lineTo(x, y + r);
       ctx.quadraticCurveTo(x, y, x + r, y);
       ctx.closePath();
+    }
+
+    if (infoClose && infoModal) {
+      // bouton "Fermer"
+      infoClose.addEventListener('click', () => {
+        infoModal.classList.remove('show');
+      });
+    
+      // clic sur le fond gris autour de la box
+      infoModal.addEventListener('click', (e) => {
+        if (e.target === infoModal) {
+          infoModal.classList.remove('show');
+        }
+      });
     }
 
     main();
