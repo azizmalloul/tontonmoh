@@ -209,21 +209,19 @@
 
         // 3) HTML de la page (avec image finale + div cachée pour le QR brut)
         elContent.innerHTML = `
-        <div class="grid">
-          <div>
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-              <h2 style="margin-top:0">${fullName}</h2>
-              <!-- bouton infos -->
-              <button id="infoBtn" class="icon-btn" type="button" aria-label="Infos sur le compte fidélité">
-                <span class="info-icon">i</span>
-              </button>
-            </div>
-            <p class="muted kv">Code : <b id="codePublic">${cli.code_public}</b></p>
-
+          <div class="grid">
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+                <h2 style="margin-top:0">${fullName}</h2>
+                <!-- bouton infos -->
+                <button id="infoBtn" class="icon-btn" type="button" aria-label="Infos sur le compte fidélité">
+                  <span class="info-icon">i</span>
+                </button>
+              </div>
+              <p class="muted kv">Code : <b id="codePublic">${cli.code_public}</b></p>
               <p class="kv">Cumul achats : <b>${euros(totalCents)}</b></p>
               <p class="kv">Ancien solde cagnotte : <b>${euros(oldBonusCents)}</b></p>
               <p class="kv">Nouveau solde cagnotte : <b>${euros(newBonusCents)}</b></p>
-
             </div>
 
             <div class="center">
@@ -240,15 +238,6 @@
           </div>
 
           <hr class="muted">
-
-        // bouton "i" pour ouvrir la popin
-        const infoBtn = document.getElementById('infoBtn');
-        if (infoBtn && infoModal) {
-          infoBtn.addEventListener('click', () => {
-            infoModal.classList.add('show');
-          });
-        }
-
 
           <h3>Mes derniers passages</h3>
           ${
@@ -270,11 +259,19 @@
             : `<p class="muted">Aucune transaction pour le moment.</p>`
           }
 
-
           <p class="muted" style="margin-top:12px">
             Conseil : gardez votre QR, chaque achat augmente votre cagnotte 💶
           </p>
         `;
+
+        // bouton "i" pour ouvrir la popin
+        const infoBtn = document.getElementById('infoBtn');
+        if (infoBtn && infoModal) {
+          infoBtn.addEventListener('click', () => {
+            infoModal.classList.add('show');
+          });
+        }
+
 
         // 4) Générer la même carte stylée que sur merci.html
         const qrFinal = document.getElementById('qrFinal');
