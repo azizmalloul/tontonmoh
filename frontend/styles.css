@@ -383,3 +383,58 @@ input.negatif:focus{
   outline-color: var(--danger);
 }
 
+.icon-btn {
+  border: none;
+  background: transparent;
+  padding: 4px 6px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn .info-icon {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,0.2);
+  font-size: 14px;
+  line-height: 20px;
+  text-align: center;
+  font-weight: 600;
+}
+
+/* Popin */
+.info-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 999;
+}
+
+.info-modal.show {
+  display: flex;
+}
+
+.info-modal-content {
+  max-width: 480px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.info-list {
+  padding-left: 1.2rem;
+  margin: 0.5rem 0 0.8rem;
+}
+
+.info-list li {
+  margin-bottom: 0.3rem;
+}
+
