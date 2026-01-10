@@ -83,7 +83,8 @@
 
       
       <p class="muted kv">Cumul achats : <b id="clientTotal">0,00 €</b></p>
-      <p class="muted kv">Bonus dispo : <b id="clientBonus">0,00 €</b></p>
+      <p class="muted kv">Ancien solde cagnotte : <b id="clientOldBonus">0,00 €</b></p>
+      <p class="muted kv">Nouveau solde cagnotte : <b id="clientBonus">0,00 €</b></p>
 
       <p class="kv">
         Montant de cet achat : <b id="clientCurrentAmount">0,00 €</b>
@@ -201,6 +202,7 @@ const clientsBtn   = document.getElementById('clientsBtn');
 const clientTotal  = document.getElementById('clientTotal');
   
 const clientBonus  = document.getElementById('clientBonus');
+const clientOldBonus = document.getElementById('clientOldBonus');
 const useBonus     = document.getElementById('useBonus');
 const payBtn       = document.getElementById('payBtn');
 let pendingClient  = null;
@@ -634,8 +636,9 @@ function showClient(cli){
   clientName.textContent = `${cli.first_name||''} ${cli.last_name||''}`.trim() || 'Client';
   clientCode.textContent = cli.code_public || '';
 
-  clientTotal.textContent = euros(cli.total_spent_cents || 0);
-  clientBonus.textContent = euros(cli.bonus_cents || 0);
+  clientTotal.textContent    = euros(cli.total_spent_cents || 0);
+  clientOldBonus.textContent = euros(cli.bonus_cents || 0); 
+  clientBonus.textContent    = euros(cli.bonus_cents || 0); 
 
   useBonus.checked = false;
   clientCard.style.display = 'block';
@@ -1165,8 +1168,9 @@ payBtn.addEventListener('click', async () => {
     pendingClient.total_spent_cents = Number(res.total_spent_cents || 0);
 
     // MAJ UI
-    clientTotal.textContent = euros(pendingClient.total_spent_cents);
-    clientBonus.textContent = euros(pendingClient.bonus_cents);
+    clientTotal.textContent    = euros(pendingClient.total_spent_cents);
+    clientOldBonus.textContent = euros(oldBonus);                 // ancien solde
+    clientBonus.textContent    = euros(pendingClient.bonus_cents); // nouveau solde
 
     const fullName = `${pendingClient.first_name || ''} ${pendingClient.last_name || ''}`.trim() || 'ce client';
 
