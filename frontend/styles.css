@@ -442,20 +442,29 @@ input.negatif:focus{
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: #dc2626;   /* rouge */
-  color: #ffffff;        /* croix blanche */
+  background: #dc2626;
+  color: #ffffff;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   font-size: 16px;
   font-weight: 700;
-
-  /* animation douce */
-  transition: transform 0.08s ease, 
-              background-color 0.08s ease, 
-              box-shadow 0.08s ease;
+  border: none;
+  transition: transform 0.08s ease,
+              background-color 0.08s ease,
+              box-shadow 0.08s ease,
+              opacity 0.08s ease;
 }
+
+/* état "écrasé" forcé par JS */
+.close-circle.pressed{
+  background: #b91c1c;
+  transform: scale(0.8);
+  box-shadow: 0 0 0 3px rgba(0,0,0,.25) inset;
+  opacity: 0.85;
+}
+
 
 /* effet visuel quand on appuie */
 .close-circle:active{
