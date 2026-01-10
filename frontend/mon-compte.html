@@ -261,13 +261,21 @@
           </p>
         `;
 
-        // bouton "i" pour ouvrir la popin
+        // bouton "i" pour ouvrir la popin + petit écrasement
         const infoBtn = document.getElementById('infoBtn');
         if (infoBtn && infoModal) {
           infoBtn.addEventListener('click', () => {
-            infoModal.classList.add('show');
+            // on force l'état écrasé
+            infoBtn.classList.add('pressed');
+        
+            // on laisse 80 ms pour voir l'effet puis on ouvre la popin
+            setTimeout(() => {
+              infoBtn.classList.remove('pressed');
+              infoModal.classList.add('show');
+            }, 80);
           });
         }
+
 
 
         // 4) Générer la même carte stylée que sur merci.html
