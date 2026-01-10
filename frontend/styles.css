@@ -438,3 +438,17 @@ input.negatif:focus{
   margin-bottom: 0.3rem;
 }
 
+.close-circle{
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #dc2626;   /* rouge */
+  color: #ffffff;        /* croix blanche */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
