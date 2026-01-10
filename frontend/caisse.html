@@ -246,6 +246,19 @@ const adminBonus   = document.getElementById('adminBonus');
 
 const adminMsg     = document.getElementById('adminMsg');
 const adminTxList  = document.getElementById('adminTxList');
+const adminSave   = document.getElementById('adminSave');
+
+// Petit helper pour l'effet "écrasé" sur les boutons .btn
+function addButtonPressFlash(el) {
+  if (!el) return;
+  el.addEventListener('click', () => {
+    el.classList.add('pressed');
+    setTimeout(() => {
+      el.classList.remove('pressed');
+    }, 100); // ~0.1s de flash
+  });
+}
+
 
 // 🧾 effacer le dernier reçu mémorisé
 function clearLastReceipt() {
@@ -1260,6 +1273,15 @@ if (cashGivenInput){
 if (useBonus){
   useBonus.addEventListener('change', updateChangePreview);
 }
+
+// Effet visuel "flash / écrasement" sur les principaux boutons de caisse
+addButtonPressFlash(startBtn);     // "Démarrer le scan"
+addButtonPressFlash(clientsBtn);   // "Liste des clients"
+addButtonPressFlash(manualBtn);    // "Valider avec ce code"
+addButtonPressFlash(payBtn);       // "Encaisser"
+addButtonPressFlash(adminBtn);     // "⚙️ Admin"
+addButtonPressFlash(adminClose);   // bouton "Fermer" dans le panneau admin
+addButtonPressFlash(adminSave);    // "Enregistrer l’ajustement"
 
 
 // Pré-remplir dernier montant
