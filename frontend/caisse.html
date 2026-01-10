@@ -274,9 +274,17 @@ function restoreLastReceipt() {
       clientCard.style.display = 'block';
       clientName.textContent   = `${currentClient.first_name || ''} ${currentClient.last_name || ''}`.trim() || 'Client';
       clientCode.textContent   = currentClient.code_public || '';
-      clientTotal.textContent  = euros(currentClient.total_spent_cents || 0);
-      clientBonus.textContent  = euros(currentClient.bonus_cents || 0);
+
+      const used   = Number(r.used_bonus_cents || 0);
+      const earned = Number(r.earned_cents || 0);
+      const newB   = Number(currentClient.bonus_cents || 0);
+      const oldB   = Math.max(0, newB - earned + used);
+
+      clientTotal.textContent      = euros(currentClient.total_spent_cents || 0);
+      clientOldBonus.textContent   = euros(oldB);   // ancien solde
+      clientBonus.textContent      = euros(newB);   // nouveau solde
       clientCurrentAmount.textContent = euros(currentAmountCents);
+
 
       formMsg.textContent   = 'Achat enregistré ✔️';
       formMsg.className     = 'success';
@@ -310,9 +318,11 @@ function restoreLastReceipt() {
       clientCard.style.display = 'block';
       clientName.textContent   = `${currentClient.first_name || ''} ${currentClient.last_name || ''}`.trim() || 'Client';
       clientCode.textContent   = currentClient.code_public || '';
-      clientTotal.textContent  = euros(currentClient.total_spent_cents || 0);
-      clientBonus.textContent  = euros(currentClient.bonus_cents || 0);
+      clientTotal.textContent      = euros(currentClient.total_spent_cents || 0);
+      clientOldBonus.textContent   = euros(currentClient.bonus_cents || 0); 
+      clientBonus.textContent      = euros(currentClient.bonus_cents || 0); 
       clientCurrentAmount.textContent = euros(currentAmountCents);
+
 
       formMsg.textContent   = 'Choisissez bonus ou non, puis cliquez “Encaisser”.';
       formMsg.className     = 'muted';
@@ -1096,8 +1106,9 @@ adminForm.addEventListener('submit', async (e) => {
     currentClient.bonus_cents       = adminBaseBonusCents;
 
     // MAJ UI caisse
-    clientTotal.textContent = euros(currentClient.total_spent_cents);
-    clientBonus.textContent = euros(currentClient.bonus_cents);
+    clientTotal.textContent      = euros(currentClient.total_spent_cents);
+    clientOldBonus.textContent   = euros(currentClient.bonus_cents); // nouveau "ancien" de référence
+    clientBonus.textContent      = euros(currentClient.bonus_cents);
 
     // MAJ UI admin (inputs)
     adminBalance.value = (currentClient.total_spent_cents / 100).toFixed(2);
