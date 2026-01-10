@@ -462,7 +462,14 @@
     if (infoClose && infoModal) {
       // bouton "Fermer"
       infoClose.addEventListener('click', () => {
-        infoModal.classList.remove('show');
+        // on force l'état écrasé
+        infoClose.classList.add('pressed');
+    
+        // on laisse 80 ms pour voir l'effet, puis on ferme la popin
+        setTimeout(() => {
+          infoModal.classList.remove('show');
+          infoClose.classList.remove('pressed');
+        }, 80);
       });
     
       // clic sur le fond gris autour de la box
@@ -472,6 +479,7 @@
         }
       });
     }
+
 
     main();
   </script>
