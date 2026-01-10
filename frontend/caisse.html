@@ -171,6 +171,7 @@ const LS_CAM_ID = 'tm_camera_id';
 const LS_LAST_AMOUNT = 'tm_last_amount';
 const COOLDOWN_MS = 15000;
 const LS_LAST_RECEIPT = 'tm_last_receipt';
+const LS_PENDING_STATE = 'tm_pending_state';
 
 /* ====== ELÉMENTS ====== */
 const formSection = document.getElementById('formSection');
@@ -246,47 +247,142 @@ const adminTxList  = document.getElementById('adminTxList');
 // 🧾 effacer le dernier reçu mémorisé
 function clearLastReceipt() {
   try { localStorage.removeItem(LS_LAST_RECEIPT); } catch (_) {}
+  try { localStorage.removeItem(LS_PENDING_STATE); } catch (_) {} // 👈 on efface aussi l'état écran
 }
+
 
 // 🧾 restaurer le dernier reçu après un refresh
 function restoreLastReceipt() {
   try {
-    const raw = localStorage.getItem(LS_LAST_RECEIPT);
-    if (!raw) return;
+    // 1️⃣ Cas "ticket après encaissement" (ce qu'on avait déjà)
+    const rawReceipt = localStorage.getItem(LS_LAST_RECEIPT);
+    if (rawReceipt) {
+      const r = JSON.parse(rawReceipt);
+      if (!r.client || !r.client.id) return;
 
-    const r = JSON.parse(raw);
-    if (!r.client || !r.client.id) return;
+      currentClient      = r.client;
+      pendingClient      = null;
+      currentAmountCents = r.amount_cents || 0;
 
-    currentClient      = r.client;
-    pendingClient      = null;
-    currentAmountCents = r.amount_cents || 0;
+      formSection.classList.add('hidden');
+      scanSection.classList.remove('hidden');
+      stopCameraStream();
+      collapseScanBox();
 
-    // on affiche directement la section 2 + carte client
-    formSection.classList.add('hidden');
-    scanSection.classList.remove('hidden');
-    stopCameraStream();      // par sécurité, caméra coupée
-    collapseScanBox();       // on replie le cadre caméra
+      clientCard.style.display = 'block';
+      clientName.textContent   = `${currentClient.first_name || ''} ${currentClient.last_name || ''}`.trim() || 'Client';
+      clientCode.textContent   = currentClient.code_public || '';
+      clientTotal.textContent  = euros(currentClient.total_spent_cents || 0);
+      clientBonus.textContent  = euros(currentClient.bonus_cents || 0);
+      clientCurrentAmount.textContent = euros(currentAmountCents);
 
-    clientCard.style.display = 'block';
-    clientName.textContent   = `${currentClient.first_name || ''} ${currentClient.last_name || ''}`.trim() || 'Client';
-    clientCode.textContent   = currentClient.code_public || '';
-    clientTotal.textContent  = euros(currentClient.total_spent_cents || 0);
-    clientBonus.textContent  = euros(currentClient.bonus_cents || 0);
-    clientCurrentAmount.textContent = euros(currentAmountCents);
+      formMsg.textContent   = 'Achat enregistré ✔️';
+      formMsg.className     = 'success';
+      scanStatus.textContent = 'Encaissement terminé. Retournez en arrière pour un nouveau client.';
 
-    formMsg.textContent   = 'Achat enregistré ✔️';
-    formMsg.className     = 'success';
-    scanStatus.textContent = 'Encaissement terminé. Retournez en arrière pour un nouveau client.';
+      if (useBonusContainer) useBonusContainer.style.display = 'none';
+      if (payBtnRow)         payBtnRow.style.display = 'none';
+      if (cashRow)           cashRow.style.display = 'none';
 
-    // après encaissement : on cache bonus / encaisser / espèces
-    if (useBonusContainer) useBonusContainer.style.display = 'none';
-    if (payBtnRow)         payBtnRow.style.display = 'none';
-    if (cashRow)           cashRow.style.display = 'none';
+      return; // ✅ on ne va pas plus loin
+    }
+
+    // 2️⃣ Sinon, regarder s'il y a un état écran en cours
+    const rawState = localStorage.getItem(LS_PENDING_STATE);
+    if (!rawState) return;
+
+    const st = JSON.parse(rawState);
+    if (!st || !st.client || !st.client.id) return;
+
+    // 2a) Cas "écran caisse avec fiche client AVANT encaissement"
+    if (st.type === 'scan') {
+      currentClient      = st.client;
+      pendingClient      = st.client;
+      currentAmountCents = st.amount_cents || 0;
+
+      formSection.classList.add('hidden');
+      scanSection.classList.remove('hidden');
+      stopCameraStream();
+      collapseScanBox();
+
+      clientCard.style.display = 'block';
+      clientName.textContent   = `${currentClient.first_name || ''} ${currentClient.last_name || ''}`.trim() || 'Client';
+      clientCode.textContent   = currentClient.code_public || '';
+      clientTotal.textContent  = euros(currentClient.total_spent_cents || 0);
+      clientBonus.textContent  = euros(currentClient.bonus_cents || 0);
+      clientCurrentAmount.textContent = euros(currentAmountCents);
+
+      formMsg.textContent   = 'Choisissez bonus ou non, puis cliquez “Encaisser”.';
+      formMsg.className     = 'muted';
+      scanStatus.textContent = 'En attente encaissement…';
+
+      if (useBonusContainer) useBonusContainer.style.display = 'flex';
+      if (payBtnRow)         payBtnRow.style.display = 'flex';
+      if (cashRow)           cashRow.style.display = 'flex';
+
+      updateChangePreview();
+      return;
+    }
+
+    // 2b) Cas "panneau ADMIN ouvert"
+    if (st.type === 'admin' && st.client_id) {
+      (async () => {
+        try {
+          adminMsg.textContent = 'Chargement…';
+          const full = await fetchClientFull(st.client_id);
+
+          const name = `${full.client.first_name||''} ${full.client.last_name||''}`.trim();
+          adminName.textContent = name || 'Client';
+          adminCode.textContent = full.client.code_public || '';
+
+          const balCents   = Number(full.balance?.total_spent_cents || 0);
+          const bonusCents = Number(full.balance?.bonus_cents || 0);
+
+          adminBaseTotalCents = balCents;
+          adminBaseBonusCents = bonusCents;
+
+          adminBalance.value = (balCents / 100).toFixed(2);
+          adminBonus.value   = (bonusCents / 100).toFixed(2);
+
+          const txs = full.transactions || [];
+          if (txs.length) {
+            adminTxList.innerHTML = `
+              <div style="overflow:auto">
+                <table class="history">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Source</th>
+                      <th>Montant / Cagnotte</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${txs.map(txRow).join('')}
+                  </tbody>
+                </table>
+              </div>`;
+          } else {
+            adminTxList.innerHTML = '<p class="muted">Aucune opération récente.</p>';
+          }
+
+          currentClient = full.client;
+
+          formSection.classList.add('hidden');
+          scanSection.classList.add('hidden');
+          adminPanel.classList.remove('hidden');
+          adminMsg.textContent = '';
+        } catch (e) {
+          console.error('restore admin', e);
+          adminMsg.textContent = 'Erreur: ' + e.message;
+        }
+      })();
+    }
 
   } catch (e) {
     console.error('restoreLastReceipt', e);
   }
 }
+
 
 
 let isSwitching = false;
@@ -558,7 +654,23 @@ function showClient(cli){
 
   // 🔄 recalcul au cas où
   updateChangePreview();
- 
+
+  // 🧾 mémoriser l'état "caisse + fiche client" pour un refresh
+  try {
+    const state = {
+      type: 'scan',
+      client: {
+        id: cli.id,
+        first_name: cli.first_name,
+        last_name: cli.last_name,
+        code_public: cli.code_public,
+        total_spent_cents: cli.total_spent_cents || 0,
+        bonus_cents: cli.bonus_cents || 0
+      },
+      amount_cents: currentAmountCents
+    };
+    localStorage.setItem(LS_PENDING_STATE, JSON.stringify(state));
+  } catch (_) {}
 }
 
 
@@ -888,6 +1000,21 @@ adminBtn.addEventListener('click', async ()=>{
       adminTxList.innerHTML = '<p class="muted">Aucune opération récente.</p>';
     }
 
+    // 🧾 mémoriser l'état "ADMIN ouvert" pour un refresh
+    try {
+      const state = {
+        type: 'admin',
+        client_id: full.client.id,
+        client: {
+          id: full.client.id,
+          first_name: full.client.first_name,
+          last_name: full.client.last_name,
+          code_public: full.client.code_public
+        }
+      };
+      localStorage.setItem(LS_PENDING_STATE, JSON.stringify(state));
+    } catch (_) {}
+
 
     adminMsg.textContent = '';
     scanSection.classList.add('hidden');
@@ -902,7 +1029,11 @@ adminBtn.addEventListener('click', async ()=>{
 adminClose.addEventListener('click', ()=>{
   adminPanel.classList.add('hidden');
   scanSection.classList.remove('hidden');
+  if (currentClient) {
+    showClient(currentClient); // 👈 remet l'état "scan" + garde LS_PENDING_STATE à jour
+  }
 });
+
 
 adminForm.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -1068,7 +1199,11 @@ payBtn.addEventListener('click', async () => {
         earned_cents: earned
       };
       localStorage.setItem(LS_LAST_RECEIPT, JSON.stringify(receipt));
-    } catch (_) {}
+      // on n'a plus d'écran "en cours" : seulement le ticket
+      try { 
+        localStorage.removeItem(LS_PENDING_STATE); 
+      } catch (_) {}
+
 
 
     // 🔥 on coupe la caméra et le scanner,
