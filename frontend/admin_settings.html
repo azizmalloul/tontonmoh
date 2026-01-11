@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Paramètres — Tonton Moh</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<header class="container center">
+  <img src="./assets/logo.png" alt="Chez Tonton Moh" class="logo" />
+  <h1>Paramètres administrateur</h1>
+  <p class="muted">
+    Page réservée à l’administrateur : mot de passe d’ajustement + pourcentage de cagnotte.
+  </p>
+</header>
+
+<main class="container">
+
+  <!-- ====== CARTE LOGIN ====== -->
+  <section class="card" id="loginCard">
+    <h2>Connexion admin</h2>
+    <form id="loginForm" class="kv">
+      <label>Email (identifiant)*
+        <input type="email" name="email" required placeholder="vous@exemple.fr" />
+      </label>
+
+      <label>Mot de passe*
+        <input type="password" name="password" required />
+      </label>
+
+      <button type="submit" class="btn" id="loginBtn">Se connecter</button>
+      <p id="loginMsg" class="muted"></p>
+    </form>
+
+    <p class="muted" style="margin-top:1rem">
+      Mot de passe oublié ?
+      <button type="button" class="linklike" id="forgotToggle">Cliquez ici</button>
+    </p>
+
+    <!-- formulaire "mot de passe oublié" -->
+    <form id="forgotForm" class="kv hidden" style="margin-top:1rem">
+      <label>Email utilisé pour le compte admin*</label>
+      <input type="email" id="forgotEmail" required placeholder="vous@exemple.fr" />
+      <button type="submit" class="btn outline" id="forgotBtn">Envoyer un lien de réinitialisation</button>
+      <p id="forgotMsg" class="muted"></p>
+    </form>
+  </section>
+
+  <!-- ====== CARTE PARAMÈTRES (visible après login) ====== -->
+  <section class="card hidden" id="settingsCard">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h2 style="margin:0">Paramètres</h2>
+      <button id="logoutBtn" class="btn outline" type="button">Se déconnecter</button>
+    </div>
+
+    <p class="muted" id="whoamiLine"></p>
+
+    <hr class="muted" />
+
+    <!-- 1) Mot de passe d’ajustement -->
+    <section class="kv">
+      <h3>Mot de passe d’ajustement caisse / liste clients</h3>
+      <p class="tip">
+        Ce mot de passe est demandé lorsqu’on enregistre un ajustement de cumul ou de cagnotte.
+        Il est envoyé à l’API dans l’en-tête <code>X-Admin-Key</code>.
+      </p>
+
+      <form id="adjustForm" class="grid">
+        <label for="adjustPass">Nouveau mot de passe d’ajustement</label>
+        <input id="adjustPass" type="password" autocomplete="new-password" />
+
+        <label for="adjustPassConfirm">Confirmer le mot de passe</label>
+        <input id="adjustPassConfirm" type="password" autocomplete="new-password" />
+
+        <div style="grid-column:1/-1" class="row">
+          <button id="adjustSave" class="btn" type="submit" style="width:100%">
+            Enregistrer le mot de passe
+          </button>
+        </div>
+        <p id="adjustMsg" class="muted"></p>
+      </form>
+    </section>
+
+    <hr class="muted" />
+
+    <!-- 2) Pourcentage de cagnotte -->
+    <section class="kv">
+      <h3>Pourcentage de cagnotte</h3>
+      <p class="tip">
+        Pourcentage de chaque achat qui est converti en bonus. Valeur entre 0 et 100&nbsp;%.
+      </p>
+
+      <form id="bonusForm" class="kv">
+        <label for="bonusRate">
+          Pourcentage de cagnotte
+          <span id="bonusRateLabel" style="font-weight:bold;margin-left:.5rem">10&nbsp;%</span>
+        </label>
+        <input
+          id="bonusRate"
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value="10"
+        />
+
+        <div class="row" style="margin-top:1rem">
+          <button id="bonusSave" class="btn" type="submit">Enregistrer le pourcentage</button>
+        </div>
+        <p id="bonusMsg" class="muted"></p>
+      </form>
+    </section>
+  </section>
+</main>
+
+<footer class="container muted">
+  <p>© 2025 Chez Tonton Moh — Fruits & Légumes, Villeurbanne</p>
+</footer>
+
+<script>
+const API = 'https://tontonmoh-api.azizekarma.workers.dev';
+
+// même clé LS que sur caisse.html & liste_clients.html
+const ADMIN_KEY_LS    = 'aziz';              // clé de stockage du mot de passe ajustement
+const ADMIN_TOKEN_LS  = 'tm_admin_token';    // jeton de session admin pour cette page
+const ADMIN_EMAIL_LS  = 'tm_admin_email';    // juste pour afficher "connecté en ..."
+
+// ---- Helpers UI ----
+function addButtonPressFlash(el) {
+  if (!el) return;
+  el.addEventListener('click', () => {
+    el.classList.add('pressed');
+    setTimeout(() => el.classList.remove('pressed'), 100);
+  });
+}
+
+function show(el){ el.classList.remove('hidden'); }
+function hide(el){ el.classList.add('hidden'); }
+
+// ---- Sélecteurs ----
+const loginCard   = document.getElementById('loginCard');
+const settingsCard= document.getElementById('settingsCard');
+
+const loginForm   = document.getElementById('loginForm');
+const loginMsg    = document.getElementById('loginMsg');
+const loginBtn    = document.getElementById('loginBtn');
+
+const forgotToggle= document.getElementById('forgotToggle');
+const forgotForm  = document.getElementById('forgotForm');
+const forgotEmail = document.getElementById('forgotEmail');
+const forgotMsg   = document.getElementById('forgotMsg');
+const forgotBtn   = document.getElementById('forgotBtn');
+
+const logoutBtn   = document.getElementById('logoutBtn');
+const whoamiLine  = document.getElementById('whoamiLine');
+
+const adjustForm  = document.getElementById('adjustForm');
+const adjustPass  = document.getElementById('adjustPass');
+const adjustPassConfirm = document.getElementById('adjustPassConfirm');
+const adjustMsg   = document.getElementById('adjustMsg');
+const adjustSave  = document.getElementById('adjustSave');
+
+const bonusForm   = document.getElementById('bonusForm');
+const bonusRate   = document.getElementById('bonusRate');
+const bonusRateLabel = document.getElementById('bonusRateLabel');
+const bonusMsg    = document.getElementById('bonusMsg');
+const bonusSave   = document.getElementById('bonusSave');
+
+// Effet "pressé"
+[loginBtn, forgotBtn, logoutBtn, adjustSave, bonusSave].forEach(addButtonPressFlash);
+
+// --- API ADMIN (à implémenter côté Worker) ---
+
+async function adminLogin(email, password){
+  const r = await fetch(`${API}/api/admin/login`, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok || !j.ok) throw new Error(j.error || 'Connexion refusée');
+  // On suppose que l’API renvoie { ok, token, bonus_rate_percent, adjust_key? }
+  return j;
+}
+
+async function adminGetSettings(token){
+  const r = await fetch(`${API}/api/admin/settings`, {
+    headers:{ 'Authorization': 'Bearer ' + token }
+  });
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok || !j.ok) throw new Error(j.error || 'Impossible de charger les paramètres');
+  return j; // ex: { ok, bonus_rate_percent, adjust_key_set:true }
+}
+
+async function adminSetAdjustKey(token, newKey){
+  const r = await fetch(`${API}/api/admin/settings/adjust-key`, {
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'Authorization':'Bearer ' + token
+    },
+    body: JSON.stringify({ new_key: newKey })
+  });
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok || !j.ok) throw new Error(j.error || 'Impossible de modifier le mot de passe');
+  return j;
+}
+
+async function adminSetBonusRate(token, bonusPercent){
+  const r = await fetch(`${API}/api/admin/settings/bonus-rate`, {
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'Authorization':'Bearer ' + token
+    },
+    body: JSON.stringify({ bonus_rate_percent: bonusPercent })
+  });
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok || !j.ok) throw new Error(j.error || 'Impossible de modifier le pourcentage');
+  return j;
+}
+
+async function adminForgotPassword(email){
+  const r = await fetch(`${API}/api/admin/password/forgot`, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ email })
+  });
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok || !j.ok) throw new Error(j.error || 'Envoi impossible');
+  return j; // ex: { ok:true }
+}
+
+// --- Gestion login / logout ---
+
+function updateBonusLabel(){
+  bonusRateLabel.textContent = bonusRate.value + ' %';
+}
+
+function showSettingsUI(){
+  hide(loginCard);
+  show(settingsCard);
+
+  const email = localStorage.getItem(ADMIN_EMAIL_LS) || '';
+  whoamiLine.textContent = email
+    ? `Connecté en tant que ${email}`
+    : '';
+}
+
+function showLoginUI(){
+  show(loginCard);
+  hide(settingsCard);
+}
+
+async function tryAutoLoginFromToken(){
+  const token = localStorage.getItem(ADMIN_TOKEN_LS);
+  if(!token) return;
+
+  try{
+    loginMsg.textContent = 'Vérification de la session…';
+    const s = await adminGetSettings(token);
+
+    // Appliquer paramètres récupérés
+    if(typeof s.bonus_rate_percent === 'number'){
+      bonusRate.value = String(Math.round(s.bonus_rate_percent));
+      updateBonusLabel();
+    }
+    // Si l’API renvoie la clé actuelle (facultatif), tu peux la pré-remplir
+    // if(s.adjust_key) { ... }
+
+    loginMsg.textContent = '';
+    showSettingsUI();
+  }catch(e){
+    console.error(e);
+    // token invalide -> on force le login
+    localStorage.removeItem(ADMIN_TOKEN_LS);
+    loginMsg.textContent = '';
+  }
+}
+
+// ---- Events ----
+
+// toggle bloc "mot de passe oublié"
+forgotToggle.addEventListener('click', () => {
+  if (forgotForm.classList.contains('hidden')) {
+    show(forgotForm);
+  } else {
+    hide(forgotForm);
+  }
+});
+
+// Soumission login
+loginForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  loginMsg.textContent = '';
+  const data = new FormData(loginForm);
+  const email = String(data.get('email') || '').trim();
+  const pass  = String(data.get('password') || '');
+
+  if(!email || !pass){
+    loginMsg.textContent = 'Merci de saisir email et mot de passe.';
+    loginMsg.className   = 'error';
+    return;
+  }
+
+  try{
+    loginMsg.textContent = 'Connexion…';
+    loginMsg.className   = 'muted';
+    const res = await adminLogin(email, pass);
+
+    const token = res.token;
+    if(!token) throw new Error('Token manquant dans la réponse API');
+
+    localStorage.setItem(ADMIN_TOKEN_LS, token);
+    localStorage.setItem(ADMIN_EMAIL_LS, email);
+
+    // récupérer les paramètres actuels
+    await tryAutoLoginFromToken();
+  }catch(err){
+    console.error(err);
+    loginMsg.textContent = 'Erreur : ' + err.message;
+    loginMsg.className   = 'error';
+  }
+});
+
+// Mot de passe oublié
+forgotForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const email = String(forgotEmail.value || '').trim();
+  if(!email){
+    forgotMsg.textContent = 'Saisissez votre adresse email.';
+    forgotMsg.className   = 'error';
+    return;
+  }
+  try{
+    forgotMsg.textContent = 'Envoi en cours…';
+    forgotMsg.className   = 'muted';
+    await adminForgotPassword(email);
+    forgotMsg.textContent = 'Si cet email existe, un lien de réinitialisation vient d’être envoyé.';
+    forgotMsg.className   = 'success';
+  }catch(err){
+    console.error(err);
+    forgotMsg.textContent = 'Erreur : ' + err.message;
+    forgotMsg.className   = 'error';
+  }
+});
+
+// Déconnexion
+logoutBtn.addEventListener('click', ()=>{
+  localStorage.removeItem(ADMIN_TOKEN_LS);
+  // on ne supprime pas forcément le mot de passe d’ajustement ici
+  showLoginUI();
+});
+
+// Formulaire mot de passe d’ajustement
+adjustForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  adjustMsg.textContent = '';
+  adjustMsg.className   = 'muted';
+
+  const p1 = adjustPass.value;
+  const p2 = adjustPassConfirm.value;
+
+  if(!p1 || !p2){
+    adjustMsg.textContent = 'Merci de saisir le mot de passe dans les deux champs.';
+    adjustMsg.className   = 'error';
+    return;
+  }
+  if(p1 !== p2){
+    adjustMsg.textContent = 'Les deux mots de passe ne correspondent pas.';
+    adjustMsg.className   = 'error';
+    return;
+  }
+
+  const token = localStorage.getItem(ADMIN_TOKEN_LS);
+  if(!token){
+    adjustMsg.textContent = 'Session expirée. Merci de vous reconnecter.';
+    adjustMsg.className   = 'error';
+    showLoginUI();
+    return;
+  }
+
+  try{
+    adjustMsg.textContent = 'Enregistrement…';
+    await adminSetAdjustKey(token, p1);
+
+    // On met aussi à jour le localStorage utilisé par caisse.html & liste_clients.html
+    localStorage.setItem(ADMIN_KEY_LS, p1);
+
+    adjustMsg.textContent = 'Mot de passe d’ajustement enregistré ✔️';
+    adjustMsg.className   = 'success';
+    adjustPass.value = '';
+    adjustPassConfirm.value = '';
+  }catch(err){
+    console.error(err);
+    adjustMsg.textContent = 'Erreur : ' + err.message;
+    adjustMsg.className   = 'error';
+  }
+});
+
+// Slider bonus
+bonusRate.addEventListener('input', updateBonusLabel);
+
+// Formulaire bonus
+bonusForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  bonusMsg.textContent = '';
+  bonusMsg.className   = 'muted';
+
+  const val = parseInt(bonusRate.value, 10);
+  if(isNaN(val) || val < 0 || val > 100){
+    bonusMsg.textContent = 'Merci de choisir un pourcentage entre 0 et 100.';
+    bonusMsg.className   = 'error';
+    return;
+  }
+
+  const token = localStorage.getItem(ADMIN_TOKEN_LS);
+  if(!token){
+    bonusMsg.textContent = 'Session expirée. Merci de vous reconnecter.';
+    bonusMsg.className   = 'error';
+    showLoginUI();
+    return;
+  }
+
+  try{
+    bonusMsg.textContent = 'Enregistrement…';
+    await adminSetBonusRate(token, val);
+    bonusMsg.textContent = 'Pourcentage de cagnotte enregistré ✔️';
+    bonusMsg.className   = 'success';
+  }catch(err){
+    console.error(err);
+    bonusMsg.textContent = 'Erreur : ' + err.message;
+    bonusMsg.className   = 'error';
+  }
+});
+
+// Init
+updateBonusLabel();
+tryAutoLoginFromToken();
+</script>
+</body>
+</html>
