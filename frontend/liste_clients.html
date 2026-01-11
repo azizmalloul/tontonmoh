@@ -131,6 +131,18 @@ function filterClients(query, rows){
 }
 function euros(cents){ return (Number(cents||0)/100).toFixed(2) + ' €'; }
 
+// Petit helper pour l'effet "écrasement" sur les boutons .btn
+function addButtonPressFlash(el) {
+  if (!el) return;
+  el.addEventListener('click', () => {
+    el.classList.add('pressed');
+    setTimeout(() => {
+      el.classList.remove('pressed');
+    }, 100); // ~0.1s
+  });
+}
+
+
 // --------- API "liste"
 async function fetchAllClients(){
   const limit = 200;
@@ -244,6 +256,10 @@ function renderList(data){
 
     const accountBtn = line.querySelector('button[data-role="account"]');
     const delBtn     = line.querySelector('button[data-role="delete"]');
+    // effet visuel sur les boutons Compte / poubelle
+    addButtonPressFlash(accountBtn);
+    addButtonPressFlash(delBtn);
+    
 
     accountBtn.addEventListener('click', () => openAccount(c));
 
@@ -305,6 +321,7 @@ const accReason     = document.getElementById('accReason');
 const accMsg        = document.getElementById('accMsg');
 const accTxList     = document.getElementById('accTxList');
 const accountForm   = document.getElementById('accountForm');
+const accSave       = document.getElementById('accSave');
 
 let currentAccountClient = null;
 
@@ -398,6 +415,13 @@ searchBtn .addEventListener('click', ()=> load(qInput.value));
 resetBtn  .addEventListener('click', ()=> { qInput.value=''; load(''); });
 refreshBtn.addEventListener('click', ()=> load(qInput.value));
 qInput    .addEventListener('keydown', (e)=>{ if(e.key==='Enter') load(qInput.value); });
+
+// Effet "flash" sur les principaux boutons
+addButtonPressFlash(searchBtn);
+addButtonPressFlash(resetBtn);
+addButtonPressFlash(refreshBtn);
+addButtonPressFlash(accountClose);
+addButtonPressFlash(accSave);
 
 // premier chargement
 load();
