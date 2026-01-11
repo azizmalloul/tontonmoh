@@ -229,7 +229,6 @@ let busy = false;
 let queuedNext = null;
 const lastScan = new Map();
 
-const ADMIN_KEY_LS = 'aziz';        // on mémorise la clé admin localement
 let currentClient = null;           // client courant
 
 let adminBaseTotalCents = 0;
@@ -622,9 +621,11 @@ async function fetchClientFull(clientId){
   if(!r.ok) throw new Error('Impossible de charger le compte client');
   return await r.json();
 }
-async function adminAdjustBalance(clientId, newTotalSpentCents, newBonusCents, reason, cashierId) {
-  const adminKey = localStorage.getItem(ADMIN_KEY_LS) || '';
-  if (!adminKey) throw new Error('Clé admin manquante');
+  
+// code d'ajustement saisi à chaque fois (pas stocké en local)
+async function adminAdjustBalance(clientId, newTotalSpentCents, newBonusCents, reason, cashierId, adjustCode) {
+  const adminKey = (adjustCode || '').trim();
+  if (!adminKey) throw new Error('Code d\'ajustement manquant');
 
   const body = {
     client_id: clientId,
@@ -638,7 +639,7 @@ async function adminAdjustBalance(clientId, newTotalSpentCents, newBonusCents, r
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Admin-Key': adminKey
+      'X-Admin-Key': adminKey          // le backend vérifiera ce code
     },
     body: JSON.stringify(body)
   });
@@ -647,8 +648,9 @@ async function adminAdjustBalance(clientId, newTotalSpentCents, newBonusCents, r
   if (!r.ok || !j.ok) {
     throw new Error(j.error ? `Erreur admin: ${j.error}` : 'Ajustement refusé');
   }
-  return j; // { ok, bonus_cents, bonus_progress_cents, total_spent_cents }
+  return j;
 }
+
 
 
 /* ====== UI CLIENT ====== */
@@ -985,12 +987,6 @@ manualBtn.addEventListener('click', async () => {
 adminBtn.addEventListener('click', async ()=>{
   try{
     if(!currentClient) return;
-    let key = localStorage.getItem(ADMIN_KEY_LS);
-    if(!key){
-      key = prompt('Clé Admin ?');
-      if(!key) return;
-      localStorage.setItem(ADMIN_KEY_LS, key);
-    }
     adminMsg.textContent = 'Chargement…';
     const full = await fetchClientFull(currentClient.id);
 
@@ -1101,13 +1097,22 @@ adminForm.addEventListener('submit', async (e) => {
       autoReason += 'Ajustement sans changement';
     }
 
-    // Appel API avec le motif auto
+    // 👉 nouveau : demander le code d'ajustement
+    const adjustCode = prompt('Code d\'ajustement ?');
+    if (!adjustCode) {
+      adminMsg.textContent = 'Ajustement annulé : code manquant.';
+      adminMsg.className   = 'error';
+      return;
+    }
+
+    // Appel API avec le motif auto + code
     const res = await adminAdjustBalance(
       currentClient.id,
       totalCents,
       bonusCents,
       autoReason,
-      CASHIER_ID
+      CASHIER_ID,
+      adjustCode
     );
 
     // Mettre à jour les valeurs de base pour le prochain ajustement
