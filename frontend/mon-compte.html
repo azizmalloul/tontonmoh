@@ -96,11 +96,20 @@
       return 'QR';
     }
     
-    // Cagnotte gagnée sur ce passage (10% par exemple)
-    const BONUS_RATE = 0.10;
-    function bonusForTx(amount_cents) {
-      return Math.round(Number(amount_cents || 0) * BONUS_RATE);
+    // Cagnotte gagnée sur ce passage.
+    // On privilégie la valeur renvoyée par l'API (earned_bonus_cents),
+    // comme ça le calcul reste correct même si tu changes le pourcentage.
+    function bonusForTx(tx) {
+      if (typeof tx.earned_bonus_cents === 'number') {
+        return Number(tx.earned_bonus_cents || 0);
+      }
+    
+      // Fallback pour les très anciennes transactions sans earned_bonus_cents :
+      const amount = Number(tx.amount_cents || 0);
+      const FALLBACK_RATE = 0.10; // ancien 10% au cas où
+      return Math.round(amount * FALLBACK_RATE);
     }
+
     
     function txRow(tx){
       const sign = tx.status === 'OK' ? '+' : '±';
@@ -112,7 +121,7 @@
     
       const mode      = txMode(tx);                       // QR / RFID / ADMIN
       const amountStr = `${sign} ${euros(tx.amount_cents)}`;
-      const bonusStr  = euros(bonusForTx(tx.amount_cents));
+      const bonusStr  = euros(bonusForTx(tx));
       const note      = tx.note ? ` — ${tx.note}` : '';
     
       return `
@@ -146,7 +155,7 @@
             const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
             const mode = txMode(tx);
             const amount = euros(tx.amount_cents);
-            const bonus = euros(bonusForTx(tx.amount_cents));
+            const bonus = euros(bonusForTx(tx));
             return `<li><strong>${date} ${time}</strong> — ${mode} — ${amount} / ${bonus}</li>`;
           }).join('')}
         </ul>`;
