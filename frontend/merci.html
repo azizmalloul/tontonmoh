@@ -44,6 +44,18 @@
     const p = new URLSearchParams(location.search);
     const code = (p.get('code') || '').toUpperCase();
 
+    // petit effet "flash / écrasement" comme ailleurs
+    function addButtonPressFlash(el) {
+      if (!el) return;
+      el.addEventListener('click', () => {
+        el.classList.add('pressed');
+        setTimeout(() => {
+          el.classList.remove('pressed');
+        }, 100); // ~0.1s
+      });
+    }
+
+
     const main        = document.querySelector('main');
     const qrFinal     = document.getElementById('qrFinal');
     const qrRaw       = document.getElementById('qrRaw');
@@ -62,6 +74,8 @@
       account.searchParams.set('code', code);
       accountLink.href = account.toString();
 
+      // effet "flash" sur le bouton Accéder à mon compte
+      addButtonPressFlash(accountLink);
 
       // Génération du QR stylé
       generateStyledQr(code)
@@ -75,6 +89,9 @@
           a.download = code + '.png';
           a.href = dataUrl;
           main.appendChild(a);
+
+          // effet "flash" sur le bouton Télécharger le QR
+          addButtonPressFlash(a);
         })
         .catch((e) => {
           console.error(e);
