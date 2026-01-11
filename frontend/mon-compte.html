@@ -97,18 +97,27 @@
     }
     
     // Cagnotte gagnée sur ce passage.
-    // On privilégie la valeur renvoyée par l'API (earned_bonus_cents),
-    // comme ça le calcul reste correct même si tu changes le pourcentage.
+    // On ne met PLUS AUCUN pourcentage ici.
+    // On lit uniquement ce que l'API a calculé avec le réglage admin.
     function bonusForTx(tx) {
+      // 1) Cas normal : le Worker renvoie earned_bonus_cents
       if (typeof tx.earned_bonus_cents === 'number') {
         return Number(tx.earned_bonus_cents || 0);
       }
     
-      // Fallback pour les très anciennes transactions sans earned_bonus_cents :
-      const amount = Number(tx.amount_cents || 0);
-      const FALLBACK_RATE = 0.10; // ancien 10% au cas où
-      return Math.round(amount * FALLBACK_RATE);
+      // 2) Fallback "logique" : si on a new_bonus_cents / previous_bonus_cents,
+      //    on fait la différence (toujours calculée côté API avec le bon %).
+      if (
+        typeof tx.new_bonus_cents === 'number' &&
+        typeof tx.previous_bonus_cents === 'number'
+      ) {
+        return Number(tx.new_bonus_cents) - Number(tx.previous_bonus_cents);
+      }
+    
+      // 3) Si vraiment on n'a rien (très vieilles lignes), on met 0.
+      return 0;
     }
+    
 
     
     function txRow(tx){
