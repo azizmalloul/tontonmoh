@@ -61,10 +61,12 @@
         <input id="accBonus" type="number" step="0.01" min="0" />
       </div>
 
-      <div style="grid-column:1/-1" class="row">
-        <input id="accReason" type="text" placeholder="Motif de l'ajustement (ex: cadeau remis / correction saisie)" style="flex:1"/>
-        <button id="accSave" class="btn" type="submit">Enregistrer l’ajustement</button>
-      </div>
+        <div style="grid-column:1/-1" class="row">
+          <button id="accSave" class="btn" type="submit" style="width:100%">
+            Enregistrer l’ajustement
+          </button>
+        </div>
+
       <p id="accMsg" class="muted"></p>
     </form>
 
@@ -130,6 +132,49 @@ function filterClients(query, rows){
   });
 }
 function euros(cents){ return (Number(cents||0)/100).toFixed(2) + ' €'; }
+
+// --- Helpers pour affichage historique façon "Mon compte" ---
+
+function txMode(tx) {
+  const note = (tx.note || '').toLowerCase();
+  if (note.includes('rfid'))   return 'RFID';
+  if (note.includes('[admin')) return 'ADMIN';
+  return 'QR';
+}
+
+const BONUS_RATE = 0.10;
+function bonusForTx(amount_cents) {
+  return Math.round(Number(amount_cents || 0) * BONUS_RATE);
+}
+
+function txRow(tx){
+  const sign = tx.status === 'OK' ? '+' : '±';
+  const dt   = new Date(tx.created_at || tx.createdAt || tx.ts || Date.now());
+  const pad  = n => String(n).padStart(2, '0');
+
+  const date = `${pad(dt.getDate())}/${pad(dt.getMonth()+1)}/${dt.getFullYear()}`;
+  const time = `${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`;
+
+  const mode      = txMode(tx);
+  const amountStr = `${sign} ${euros(tx.amount_cents)}`;
+  const bonusStr  = euros(bonusForTx(tx.amount_cents));
+  const note      = tx.note ? ` — ${tx.note}` : '';
+
+  return `
+    <tr class="tx-row">
+      <td colspan="3">
+        <div class="tx-box">
+          <div class="tx-grid">
+            <div class="tx-date">${date}</div>
+            <div class="tx-mode">${mode}</div>
+            <div class="tx-amount">${amountStr} / ${bonusStr}</div>
+            <div class="tx-subline">${time}${note}</div>
+          </div>
+        </div>
+      </td>
+    </tr>`;
+}
+
 
 // Petit helper pour l'effet "écrasement" sur les boutons .btn
 function addButtonPressFlash(el) {
@@ -316,7 +361,6 @@ const accName       = document.getElementById('accName');
 const accCode       = document.getElementById('accCode');
 const accBalance    = document.getElementById('accBalance');
 const accBonus      = document.getElementById('accBonus');
-const accReason     = document.getElementById('accReason');
 
 const accMsg        = document.getElementById('accMsg');
 const accTxList     = document.getElementById('accTxList');
@@ -324,6 +368,9 @@ const accountForm   = document.getElementById('accountForm');
 const accSave       = document.getElementById('accSave');
 
 let currentAccountClient = null;
+
+let accBaseTotalCents = 0;
+let accBaseBonusCents = 0;
 
 
 async function openAccount(client){
@@ -342,15 +389,35 @@ async function openAccount(client){
     const totalCents = Number(full.balance?.total_spent_cents || 0);
     const bonusCents = Number(full.balance?.bonus_cents || 0);
     
+    // valeurs de base pour l’auto-motif
+    accBaseTotalCents = totalCents;
+    accBaseBonusCents = bonusCents;
+    
     accBalance.value = (totalCents / 100).toFixed(2);
     accBonus.value   = (bonusCents / 100).toFixed(2);
-
-
-    accTxList.innerHTML = (full.transactions||[]).map(t=>{
-      const dt  = (t.created_at||'').replace('T',' ').replace('Z','');
-      const amt = euros(t.amount_cents);
-      return `<p class="muted"><b>${dt}</b> — ${t.status} — ${amt} — <i>${t.note||''}</i></p>`;
-    }).join('') || '<p class="muted">Aucune opération récente.</p>';
+    
+    const txs = full.transactions || [];
+    if (txs.length) {
+      accTxList.innerHTML = `
+        <div style="overflow:auto">
+          <table class="history">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Source</th>
+                <th>Montant / Cagnotte</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${txs.map(txRow).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    } else {
+      accTxList.innerHTML = '<p class="muted">Aucune opération récente.</p>';
+    }
+    
 
     accMsg.textContent = '';
   }catch(e){
@@ -370,6 +437,7 @@ accountForm.addEventListener('submit', async (e)=>{
   try{
     if(!currentAccountClient) return;
     accMsg.textContent = 'Enregistrement…';
+    accMsg.className   = 'muted';
 
     // Cumul achats (en €) -> total_spent_cents
     const eurosTotalStr = String(accBalance.value || '0').replace(',','.');
@@ -385,29 +453,77 @@ accountForm.addEventListener('submit', async (e)=>{
       Math.round(parseFloat(eurosBonusStr || '0') * 100)
     );
 
-    const reason = accReason.value || '';
+    // 🔍 comme sur caisse.html : motif automatique
+    const cumulChanged    = totalCents !== accBaseTotalCents;
+    const cagnotteChanged = bonusCents !== accBaseBonusCents;
+
+    let autoReason = '';
+    if (cumulChanged && cagnotteChanged) {
+      autoReason = 'Ajustement cumul/cagnotte';
+    } else if (cumulChanged) {
+      autoReason = 'Ajustement cumul';
+    } else if (cagnotteChanged) {
+      autoReason = 'Ajustement cagnotte';
+    } else {
+      autoReason = 'Ajustement sans changement';
+    }
 
     const res = await adminAdjustBalance(
       currentAccountClient.id,
       totalCents,
       bonusCents,
-      reason
+      autoReason
+    );
+
+    // mettre à jour les valeurs de base
+    accBaseTotalCents = Number(
+      res.total_spent_cents != null ? res.total_spent_cents : totalCents
+    );
+    accBaseBonusCents = Number(
+      res.bonus_cents != null ? res.bonus_cents : bonusCents
     );
 
     // Mise à jour en mémoire
-    currentAccountClient.total_spent_cents = Number(res.total_spent_cents ?? totalCents);
-    currentAccountClient.bonus_cents       = Number(res.bonus_cents ?? bonusCents);
+    currentAccountClient.total_spent_cents = accBaseTotalCents;
+    currentAccountClient.bonus_cents       = accBaseBonusCents;
 
     // MAJ des champs
-    accBalance.value = (currentAccountClient.total_spent_cents / 100).toFixed(2);
-    accBonus.value   = (currentAccountClient.bonus_cents / 100).toFixed(2);
+    accBalance.value = (accBaseTotalCents / 100).toFixed(2);
+    accBonus.value   = (accBaseBonusCents / 100).toFixed(2);
+
+    // 🔄 recharger les dernières opérations pour voir la ligne [ADMIN]
+    const full2 = await fetchClientFull(currentAccountClient.id);
+    const txs2 = full2.transactions || [];
+    if (txs2.length) {
+      accTxList.innerHTML = `
+        <div style="overflow:auto">
+          <table class="history">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Source</th>
+                <th>Montant / Cagnotte</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${txs2.map(txRow).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    } else {
+      accTxList.innerHTML = '<p class="muted">Aucune opération récente.</p>';
+    }
 
     accMsg.textContent = 'Ajustement enregistré ✔️';
+    accMsg.className   = 'success';
   }catch(err){
     console.error(err);
     accMsg.textContent = 'Erreur: ' + err.message;
+    accMsg.className   = 'error';
   }
 });
+
 
 
 // --------- Events liste
