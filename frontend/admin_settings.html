@@ -122,7 +122,6 @@
 const API = 'https://tontonmoh-api.azizekarma.workers.dev';
 
 // même clé LS que sur caisse.html & liste_clients.html
-const ADMIN_KEY_LS    = 'aziz';              // clé de stockage du mot de passe ajustement
 const ADMIN_TOKEN_LS  = 'tm_admin_token';    // jeton de session admin pour cette page
 const ADMIN_EMAIL_LS  = 'tm_admin_email';    // juste pour afficher "connecté en ..."
 
@@ -384,9 +383,6 @@ adjustForm.addEventListener('submit', async (e)=>{
   try{
     adjustMsg.textContent = 'Enregistrement…';
     await adminSetAdjustKey(token, p1);
-
-    // On met aussi à jour le localStorage utilisé par caisse.html & liste_clients.html
-    localStorage.setItem(ADMIN_KEY_LS, p1);
 
     adjustMsg.textContent = 'Mot de passe d’ajustement enregistré ✔️';
     adjustMsg.className   = 'success';
