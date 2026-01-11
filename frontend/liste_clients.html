@@ -79,7 +79,7 @@
 
 <script>
 const API = 'https://tontonmoh-api.azizekarma.workers.dev';
-const ADMIN_KEY_LS = 'aziz';
+
 const CASHIER_ID   = 'cash_admin';
 
 // --------- Utilitaires
@@ -206,6 +206,7 @@ async function fetchAllClients(){
   }
   return all;
 }
+
 async function deleteClient(id){
   const r = await fetch(`${API}/api/clients/${encodeURIComponent(id)}`, { method:'DELETE' });
   if(!r.ok) throw new Error('Suppression refusée');
@@ -218,12 +219,11 @@ async function fetchClientFull(clientId){
   if(!r.ok) throw new Error('Impossible de charger le compte client');
   return await r.json();
 }
-async function adminAdjustBalance(clientId, newTotalSpentCents, newBonusCents, reason){
-  let adminKey = localStorage.getItem(ADMIN_KEY_LS) || '';
-  if(!adminKey){
-    adminKey = prompt('Clé Admin ?');
-    if(!adminKey) throw new Error('Clé admin manquante');
-    localStorage.setItem(ADMIN_KEY_LS, adminKey);
+// code d'ajustement saisi à chaque fois (pas stocké en local)
+async function adminAdjustBalance(clientId, newTotalSpentCents, newBonusCents, reason, adjustCode){
+  const adminKey = (adjustCode || '').trim();
+  if (!adminKey) {
+    throw new Error('Code d’ajustement manquant');
   }
 
   const r = await fetch(`${API}/api/admin/balances/adjust`, {
@@ -244,9 +244,9 @@ async function adminAdjustBalance(clientId, newTotalSpentCents, newBonusCents, r
   if(!r.ok || !j.ok){
     throw new Error(j.error ? `Erreur admin: ${j.error}` : 'Ajustement refusé');
   }
-  // Worker renvoie: { ok, bonus_cents, bonus_progress_cents, total_spent_cents }
   return j;
 }
+
 
 
 // --------- UI liste
@@ -468,11 +468,20 @@ accountForm.addEventListener('submit', async (e)=>{
       autoReason = 'Ajustement sans changement';
     }
 
+    // 👉 NOUVEAU : demander le code d’ajustement
+    const adjustCode = prompt('Code d’ajustement ?');
+    if (!adjustCode) {
+      accMsg.textContent = 'Ajustement annulé : code manquant.';
+      accMsg.className   = 'error';
+      return;
+    }
+    
     const res = await adminAdjustBalance(
       currentAccountClient.id,
       totalCents,
       bonusCents,
-      autoReason
+      autoReason,
+      adjustCode
     );
 
     // mettre à jour les valeurs de base
