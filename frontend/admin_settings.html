@@ -110,7 +110,32 @@
 
     <hr class="muted" />
 
-    <!-- 2) Pourcentage de cagnotte -->
+    <!-- 2) Mot de passe de la caisse -->
+    <section class="kv">
+      <h3>Mot de passe de la caisse</h3>
+      <p class="tip">
+        Ce mot de passe est demandé pour accéder à la page <code>caisse.html</code>.
+      </p>
+
+      <form id="cashierPassForm" class="grid">
+        <label for="cashierPass">Nouveau mot de passe caisse</label>
+        <input id="cashierPass" type="password" autocomplete="new-password" />
+
+        <label for="cashierPassConfirm">Confirmer le mot de passe</label>
+        <input id="cashierPassConfirm" type="password" autocomplete="new-password" />
+
+        <div style="grid-column:1/-1" class="row">
+          <button id="cashierPassSave" class="btn" type="submit" style="width:100%">
+            Enregistrer le mot de passe caisse
+          </button>
+        </div>
+        <p id="cashierPassMsg" class="muted"></p>
+      </form>
+    </section>
+
+    <hr class="muted" />
+
+    <!-- 3) Pourcentage de cagnotte -->
     <section class="kv">
       <h3>Pourcentage de cagnotte</h3>
       <p class="tip">
@@ -203,10 +228,15 @@ const bonusRate   = document.getElementById('bonusRate');
 const bonusRateLabel = document.getElementById('bonusRateLabel');
 const bonusMsg    = document.getElementById('bonusMsg');
 const bonusSave   = document.getElementById('bonusSave');
+const cashierPassForm    = document.getElementById('cashierPassForm');
+const cashierPass        = document.getElementById('cashierPass');
+const cashierPassConfirm = document.getElementById('cashierPassConfirm');
+const cashierPassMsg     = document.getElementById('cashierPassMsg');
+const cashierPassSave    = document.getElementById('cashierPassSave');
+
 
 // Effet "pressé"
-[loginBtn, forgotBtn, logoutBtn, adjustSave, bonusSave, resetBtn, resetBackBtn].forEach(addButtonPressFlash);
-
+[loginBtn, forgotBtn, logoutBtn, adjustSave, bonusSave, resetBtn, resetBackBtn, cashierPassSave].forEach(addButtonPressFlash);
 
 // --- API ADMIN (à implémenter côté Worker) ---
 
@@ -258,6 +288,21 @@ async function adminSetBonusRate(token, bonusPercent){
   if(!r.ok || !j.ok) throw new Error(j.error || 'Impossible de modifier le pourcentage');
   return j;
 }
+
+async function adminSetCashierPassword(token, newPassword){
+  const r = await fetch(`${API}/api/admin/settings/cashier-password`, {
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'Authorization':'Bearer ' + token
+    },
+    body: JSON.stringify({ new_password: newPassword })
+  });
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok || !j.ok) throw new Error(j.error || 'Impossible de modifier le mot de passe caisse');
+  return j;
+}
+
 
 async function adminForgotPassword(email){
   const r = await fetch(`${API}/api/admin/password/forgot`, {
@@ -454,6 +499,50 @@ adjustForm.addEventListener('submit', async (e)=>{
     adjustMsg.className   = 'error';
   }
 });
+
+// Formulaire mot de passe de la caisse
+cashierPassForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  cashierPassMsg.textContent = '';
+  cashierPassMsg.className   = 'muted';
+
+  const p1 = cashierPass.value;
+  const p2 = cashierPassConfirm.value;
+
+  if(!p1 || !p2){
+    cashierPassMsg.textContent = 'Merci de saisir le mot de passe dans les deux champs.';
+    cashierPassMsg.className   = 'error';
+    return;
+  }
+  if(p1 !== p2){
+    cashierPassMsg.textContent = 'Les deux mots de passe ne correspondent pas.';
+    cashierPassMsg.className   = 'error';
+    return;
+  }
+
+  const token = localStorage.getItem(ADMIN_TOKEN_LS);
+  if(!token){
+    cashierPassMsg.textContent = 'Session expirée. Merci de vous reconnecter.';
+    cashierPassMsg.className   = 'error';
+    showLoginUI();
+    return;
+  }
+
+  try{
+    cashierPassMsg.textContent = 'Enregistrement…';
+    await adminSetCashierPassword(token, p1);
+
+    cashierPassMsg.textContent = 'Mot de passe caisse enregistré ✔️';
+    cashierPassMsg.className   = 'success';
+    cashierPass.value = '';
+    cashierPassConfirm.value = '';
+  }catch(err){
+    console.error(err);
+    cashierPassMsg.textContent = 'Erreur : ' + err.message;
+    cashierPassMsg.className   = 'error';
+  }
+});
+
 
 // Slider bonus
 bonusRate.addEventListener('input', updateBonusLabel);
