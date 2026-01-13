@@ -47,6 +47,32 @@
     </form>
   </section>
 
+    <!-- CARTE RESET MOT DE PASSE (affichée avec ?reset_token=...) -->
+  <section class="card hidden" id="resetCard">
+    <h2>Réinitialiser le mot de passe admin</h2>
+    <p class="muted">
+      Choisissez un nouveau mot de passe administrateur pour la connexion à cette page.
+    </p>
+
+    <form id="resetForm" class="kv">
+      <label>Nouveau mot de passe*
+        <input type="password" id="resetPass" autocomplete="new-password" required />
+      </label>
+
+      <label>Confirmer le nouveau mot de passe*
+        <input type="password" id="resetPassConfirm" autocomplete="new-password" required />
+      </label>
+
+      <div class="row" style="margin-top:0.5rem">
+        <button type="submit" class="btn" id="resetBtn">Enregistrer le nouveau mot de passe</button>
+        <button type="button" class="btn outline" id="resetBackBtn">Retour à la connexion</button>
+      </div>
+
+      <p id="resetMsg" class="muted"></p>
+    </form>
+  </section>
+
+
   <!-- ====== CARTE PARAMÈTRES (visible après login) ====== -->
   <section class="card hidden" id="settingsCard">
     <div class="row" style="justify-content:space-between;align-items:center">
@@ -124,6 +150,8 @@ const API = 'https://tontonmoh-api.azizekarma.workers.dev';
 // stockage local pour la session d’admin (uniquement sur cette page)
 const ADMIN_TOKEN_LS  = 'tm_admin_token';    // jeton de session admin pour cette page
 const ADMIN_EMAIL_LS  = 'tm_admin_email';    // juste pour afficher "connecté en ..."
+let RESET_TOKEN = null; // token de reset récupéré dans l'URL
+
 
 // ---- Helpers UI ----
 function addButtonPressFlash(el) {
@@ -140,6 +168,8 @@ function hide(el){ el.classList.add('hidden'); }
 // ---- Sélecteurs ----
 const loginCard   = document.getElementById('loginCard');
 const settingsCard= document.getElementById('settingsCard');
+const resetCard   = document.getElementById('resetCard'); // carte reset
+
 
 const loginForm   = document.getElementById('loginForm');
 const loginMsg    = document.getElementById('loginMsg');
@@ -150,6 +180,14 @@ const forgotForm  = document.getElementById('forgotForm');
 const forgotEmail = document.getElementById('forgotEmail');
 const forgotMsg   = document.getElementById('forgotMsg');
 const forgotBtn   = document.getElementById('forgotBtn');
+// éléments du formulaire de reset
+const resetForm        = document.getElementById('resetForm');
+const resetPass        = document.getElementById('resetPass');
+const resetPassConfirm = document.getElementById('resetPassConfirm');
+const resetMsg         = document.getElementById('resetMsg');
+const resetBtn         = document.getElementById('resetBtn');
+const resetBackBtn     = document.getElementById('resetBackBtn');
+
 
 const logoutBtn   = document.getElementById('logoutBtn');
 const whoamiLine  = document.getElementById('whoamiLine');
@@ -167,7 +205,8 @@ const bonusMsg    = document.getElementById('bonusMsg');
 const bonusSave   = document.getElementById('bonusSave');
 
 // Effet "pressé"
-[loginBtn, forgotBtn, logoutBtn, adjustSave, bonusSave].forEach(addButtonPressFlash);
+[loginBtn, forgotBtn, logoutBtn, adjustSave, bonusSave, resetBtn, resetBackBtn].forEach(addButtonPressFlash);
+
 
 // --- API ADMIN (à implémenter côté Worker) ---
 
@@ -231,6 +270,18 @@ async function adminForgotPassword(email){
   return j; // ex: { ok:true }
 }
 
+async function adminResetPassword(token, newPassword){
+  const r = await fetch(`${API}/api/admin/password/reset`, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ token, new_password: newPassword })
+  });
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok || !j.ok) throw new Error(j.error || 'Réinitialisation impossible');
+  return j;
+}
+
+
 // --- Gestion login / logout ---
 
 function updateBonusLabel(){
@@ -239,6 +290,7 @@ function updateBonusLabel(){
 
 function showSettingsUI(){
   hide(loginCard);
+  hide(resetCard);      // on cache aussi la carte reset
   show(settingsCard);
 
   const email = localStorage.getItem(ADMIN_EMAIL_LS) || '';
@@ -250,7 +302,15 @@ function showSettingsUI(){
 function showLoginUI(){
   show(loginCard);
   hide(settingsCard);
+  hide(resetCard);      // on cache reset
 }
+
+function showResetUI(){
+  hide(loginCard);
+  hide(settingsCard);
+  show(resetCard);
+}
+
 
 async function tryAutoLoginFromToken(){
   const token = localStorage.getItem(ADMIN_TOKEN_LS);
@@ -431,9 +491,74 @@ bonusForm.addEventListener('submit', async (e)=>{
   }
 });
 
-// Init
-updateBonusLabel();
-tryAutoLoginFromToken();
+if (resetForm) {
+  resetForm.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    resetMsg.textContent = '';
+    resetMsg.className   = 'muted';
+
+    const p1 = resetPass.value;
+    const p2 = resetPassConfirm.value;
+
+    if(!p1 || !p2){
+      resetMsg.textContent = 'Merci de saisir le mot de passe dans les deux champs.';
+      resetMsg.className   = 'error';
+      return;
+    }
+    if(p1 !== p2){
+      resetMsg.textContent = 'Les deux mots de passe ne correspondent pas.';
+      resetMsg.className   = 'error';
+      return;
+    }
+    if(!RESET_TOKEN){
+      resetMsg.textContent = 'Lien invalide ou expiré.';
+      resetMsg.className   = 'error';
+      return;
+    }
+
+    try{
+      resetMsg.textContent = 'Enregistrement…';
+      await adminResetPassword(RESET_TOKEN, p1);
+      resetMsg.textContent = 'Mot de passe modifié ✔️ Vous pouvez maintenant vous reconnecter.';
+      resetMsg.className   = 'success';
+      resetPass.value = '';
+      resetPassConfirm.value = '';
+    }catch(err){
+      console.error(err);
+      resetMsg.textContent = 'Erreur : ' + err.message;
+      resetMsg.className   = 'error';
+    }
+  });
+}
+
+// bouton "Retour à la connexion"
+if (resetBackBtn) {
+  resetBackBtn.addEventListener('click', ()=>{
+    const url = new URL(window.location.href);
+    url.searchParams.delete('reset_token');
+    window.location.href = url.toString();
+  });
+}
+
+
+function initPage(){
+  updateBonusLabel();
+
+  const params = new URLSearchParams(window.location.search);
+  const t = params.get('reset_token');
+
+  if (t) {
+    // Mode réinitialisation
+    RESET_TOKEN = t;
+    showResetUI();
+  } else {
+    // Mode normal
+    tryAutoLoginFromToken();
+  }
+}
+
+initPage();
+
 </script>
 </body>
 </html>
