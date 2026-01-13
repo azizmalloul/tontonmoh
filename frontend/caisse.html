@@ -14,6 +14,20 @@
 
 <main class="container">
   <!-- SECTION 1 — visible au départ -->
+
+  <!-- LOGIN CAISSE -->
+  <section id="cashierLoginCard" class="card">
+    <h2>Connexion caisse</h2>
+    <form id="cashierLoginForm" class="kv">
+      <label>Mot de passe caisse*
+        <input type="password" id="cashierPassword" required autocomplete="current-password" />
+      </label>
+      <button type="submit" class="btn" id="cashierLoginBtn">Entrer</button>
+      <p id="cashierLoginMsg" class="muted"></p>
+    </form>
+  </section>
+
+  
   <section id="formSection" class="card">
     <h2>1) Montant de l’achat</h2>
     <form id="amountForm" class="kv">
@@ -174,9 +188,17 @@ const LS_LAST_AMOUNT = 'tm_last_amount';
 const COOLDOWN_MS = 15000;
 const LS_LAST_RECEIPT = 'tm_last_receipt';
 const LS_PENDING_STATE = 'tm_pending_state';
+const CASHIER_LS_OK = 'tm_cashier_ok';
+
 
 /* ====== ELÉMENTS ====== */
 const formSection = document.getElementById('formSection');
+const cashierLoginCard   = document.getElementById('cashierLoginCard');
+const cashierLoginForm   = document.getElementById('cashierLoginForm');
+const cashierPasswordInp = document.getElementById('cashierPassword');
+const cashierLoginBtn    = document.getElementById('cashierLoginBtn');
+const cashierLoginMsg    = document.getElementById('cashierLoginMsg');
+
 const scanSection = document.getElementById('scanSection');
 
 const amountForm  = document.getElementById('amountForm');
@@ -612,6 +634,37 @@ async function fetchClientByCode(code){
   if (!r.ok) throw new Error('Code inconnu');
   return await r.json();
 }
+
+async function cashierLogin(password){
+  const r = await fetch(`${API}/api/cashier/login`, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ password })
+  });
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok || !j.ok) throw new Error(j.error || 'Mot de passe incorrect');
+  return j;
+}
+
+function isCashierLoggedIn(){
+  const ts = Number(localStorage.getItem(CASHIER_LS_OK) || '0');
+  const ONE_DAY = 24*60*60*1000;
+  return ts && (Date.now() - ts) < ONE_DAY;
+}
+
+function enforceCashierLoginUI(){
+  if (isCashierLoggedIn()){
+    cashierLoginCard.classList.add('card-hidden'); // optionnel si tu as une classe
+    cashierLoginCard.classList.add('hidden');
+    formSection.classList.remove('hidden');
+  } else {
+    cashierLoginCard.classList.remove('hidden');
+    formSection.classList.add('hidden');
+    scanSection.classList.add('hidden');
+    adminPanel.classList.add('hidden');
+  }
+}
+
 async function postTransaction(cli, amount_cents, use_bonus){
   const txId = 'tx_' + Date.now();
   const r = await fetch(`${API}/api/transactions`, {
@@ -873,6 +926,37 @@ function stopScanner(fully=true){
   formMsg.textContent='';
   scanStatus.textContent='Visez le QR…';
 }
+
+
+cashierLoginForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  cashierLoginMsg.textContent = '';
+  cashierLoginMsg.className   = 'muted';
+
+  const pwd = (cashierPasswordInp.value || '').trim();
+  if (!pwd) {
+    cashierLoginMsg.textContent = 'Entrez le mot de passe caisse.';
+    cashierLoginMsg.className   = 'error';
+    return;
+  }
+
+  try{
+    cashierLoginMsg.textContent = 'Vérification…';
+    await cashierLogin(pwd);
+
+    localStorage.setItem(CASHIER_LS_OK, String(Date.now()));
+    cashierPasswordInp.value = '';
+    cashierLoginMsg.textContent = 'Connexion réussie ✔️';
+    cashierLoginMsg.className   = 'success';
+
+    enforceCashierLoginUI();
+  } catch(err){
+    console.error(err);
+    cashierLoginMsg.textContent = 'Erreur : ' + err.message;
+    cashierLoginMsg.className   = 'error';
+  }
+});
+
 
 
 amountForm.addEventListener('submit', (e) => {
@@ -1307,6 +1391,8 @@ addButtonPressFlash(payBtn);       // "Encaisser"
 addButtonPressFlash(adminBtn);     // "⚙️ Admin"
 addButtonPressFlash(adminClose);   // bouton "Fermer" dans le panneau admin
 addButtonPressFlash(adminSave);    // "Enregistrer l’ajustement"
+addButtonPressFlash(cashierLoginBtn);
+
 
 
 // Pré-remplir dernier montant
@@ -1314,6 +1400,9 @@ const last = localStorage.getItem(LS_LAST_AMOUNT);
 if (last) amountInput.value = last;
 // 🧾 Si un reçu a été mémorisé, on le ré-affiche
 restoreLastReceipt();
+// Activer / désactiver la caisse selon le login caisse
+enforceCashierLoginUI();
+
 
 </script>
 </body>
