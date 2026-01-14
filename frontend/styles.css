@@ -502,3 +502,25 @@ input.negatif:focus{
   box-shadow: 0 0 0 3px rgba(0,0,0,.25) inset;
   opacity: 0.85;
 }
+
+.client-row {
+  border-bottom:none;
+  padding:.6rem .8rem;
+  margin-bottom:.5rem;
+  border-radius:10px;
+  background:#f3f4f6;       /* gris clair */
+  align-items:flex-start;
+  gap:.75rem;
+  flex-wrap:wrap;
+}
+/* alternance gris foncé / clair */
+.client-row:nth-child(odd) {
+  background:#e5e7eb;
+}
+.client-row:nth-child(even) {
+  background:#f3f4f6;
+}
+
+.info-main { font-weight:600; }
+.info-sub  { font-size:.9rem;  color:#555; }
+.rfid-tag  { font-size:.85rem; color:#555; }
