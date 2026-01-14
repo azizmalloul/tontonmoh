@@ -263,73 +263,83 @@ let currentData = [];
 
 function renderList(data){
   listBox.innerHTML = '';
-  if(!data.length){
-    listBox.appendChild(el('p', { class:'muted' }, 'Aucun client.'));
+  if (!data.length) {
+    listBox.appendChild(el('p', { class: 'muted' }, 'Aucun client.'));
     return;
   }
 
-  data.forEach((c, i)=>{
-    const idx = (i+1) + ') ';
-    const rfidLabel = c.rfid_token ? ` [RFID: ${c.rfid_token}]` : ' [RFID: —]';
+  data.forEach((c, i) => {
+    const idx      = (i + 1) + ') ';
+    const fullName = `${(c.first_name || '').trim()} ${(c.last_name || '').trim()}`.trim() || '(Sans nom)';
 
-    const line = el('div', {
-      class:'row',
-      style:'justify-content:space-between; align-items:center; gap:.75rem; padding:.4rem 0; border-bottom:1px dashed var(--muted,#eee);'
-    }, [
-      el('div', {}, [
-        el('b', {}, idx),
-        document.createTextNode(`${(c.first_name||'').trim()} ${(c.last_name||'').trim()}  `),
-        el('span', { class:'muted' },
-          ` ${c.email || '—'}  ${telNice(c.phone_e164)}  ${c.code_public || ''}${rfidLabel}`
-        )
-      ]),
-      el('div', { class:'row', style:'gap:.4rem' }, [
-        el('button', {
-          class:'btn outline',
-          'data-role':'account',
-          title:'Voir le compte (cumul, bonus, historique)'
-        }, 'Compte'),
+    // conteneur gris pour le client
+    const row  = el('div', { class: 'row client-row' });
 
-        el('button', {
-          class:'btn outline',
-          'data-role':'delete',
-          title:'Supprimer ce client',
-          style:'--btn-bg:transparent;'
-        }, '🗑️')
-      ])
-    ]);
+    // bloc texte à gauche
+    const left = el('div');
+    left.append(
+      el('div', { class: 'info-main' }, idx + fullName),
+      el('div', { class: 'info-sub'  }, 'Email : '      + (c.email || '—')),
+      el('div', { class: 'info-sub'  }, 'Téléphone : '  + telNice(c.phone_e164)),
+      el('div', { class: 'rfid-tag'  }, 'Code : '       + (c.code_public || '—')),
+      el('div', { class: 'rfid-tag'  }, 'RFID UID : '   + (c.rfid_uid || '—')),
+      el('div', { class: 'rfid-tag'  }, 'RFID token : ' + (c.rfid_token || '—'))
+    );
 
-    const accountBtn = line.querySelector('button[data-role="account"]');
-    const delBtn     = line.querySelector('button[data-role="delete"]');
-    // effet visuel sur les boutons Compte / poubelle
+    // boutons à droite
+    const btnBox = el('div', {
+      class: 'row',
+      style: 'gap:.4rem; flex-wrap:wrap; margin-left:auto;'
+    });
+
+    const accountBtn = el('button', {
+      class: 'btn outline',
+      'data-role': 'account',
+      title: 'Voir le compte (cumul, bonus, historique)'
+    }, 'Compte');
+
+    const delBtn = el('button', {
+      class: 'btn outline',
+      'data-role': 'delete',
+      title: 'Supprimer ce client',
+      style: '--btn-bg:transparent;'
+    }, '🗑️');
+
+    // petit effet de clic comme avant
     addButtonPressFlash(accountBtn);
     addButtonPressFlash(delBtn);
-    
 
     accountBtn.addEventListener('click', () => openAccount(c));
 
-    delBtn.addEventListener('click', async ()=>{
-      const name = `${c.first_name||''} ${c.last_name||''}`.trim() || 'Ce client';
-      const ok = confirm(`Supprimer le compte "${name}" ?\n\nCette action supprime aussi son solde et ses transactions (ON DELETE CASCADE).`);
-      if(!ok) return;
-      try{
+    delBtn.addEventListener('click', async () => {
+      const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Ce client';
+      const ok = confirm(
+        `Supprimer le compte "${name}" ?\n\n` +
+        `Cette action supprime aussi son solde et ses transactions (ON DELETE CASCADE).`
+      );
+      if (!ok) return;
+
+      try {
         delBtn.disabled = true;
         await deleteClient(c.id);
-        currentData = currentData.filter(x=>x.id !== c.id);
+        currentData = currentData.filter(x => x.id !== c.id);
         renderList(currentData);
         countLine.textContent = `${currentData.length} client(s) affiché(s).`;
         msg.textContent = 'Compte supprimé ✔️';
         msg.className = 'success';
-      }catch(e){
+      } catch (e) {
         delBtn.disabled = false;
         msg.textContent = 'Erreur suppression: ' + e.message;
         msg.className = 'error';
       }
     });
 
-    listBox.appendChild(line);
+    btnBox.append(accountBtn, delBtn);
+    row.append(left, btnBox);
+    listBox.appendChild(row);
   });
 }
+
 
 async function load(query=''){
   try{
